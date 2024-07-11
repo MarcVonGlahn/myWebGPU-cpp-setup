@@ -1,20 +1,23 @@
 /**
+ * This is an extension of GLFW for WebGPU, abstracting away the details of
+ * OS-specific operations.
+ * 
  * This file is part of the "Learn WebGPU for C++" book.
- *   https://github.com/eliemichel/LearnWebGPU
- *
+ *   https://eliemichel.github.io/LearnWebGPU
+ * 
  * MIT License
- * Copyright (c) 2022-2024 Elie Michel
- *
+ * Copyright (c) 2022-2023 Elie Michel and the wgpu-native authors
+ * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- *
+ * 
  * The above copyright notice and this permission notice shall be included in all
  * copies or substantial portions of the Software.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -24,45 +27,23 @@
  * SOFTWARE.
  */
 
-#include "webgpu-utils.h"
+#ifndef _glfw3_webgpu_h_
+#define _glfw3_webgpu_h_
 
 #include <webgpu/webgpu.h>
-#ifdef WEBGPU_BACKEND_WGPU
-#  include <webgpu/wgpu.h>
-#endif // WEBGPU_BACKEND_WGPU
+#include <GLFW/glfw3.h>
 
-#include "GLFW/glfw3.h"
-#include <glfw3webgpu.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include <iostream>
-#include <cassert>
-#include <vector>
+/**
+ * Get a WGPUSurface from a GLFW window.
+ */
+WGPUSurface glfwGetWGPUSurface(WGPUInstance instance, GLFWwindow* window);
 
-#include "Application.h"
-
-int main() {
-	Application app;
-
-	if (!app.Initialize()) {
-		return 1;
-	}
-
-#ifdef __EMSCRIPTEN__
-	// Equivalent of the main loop when using Emscripten:
-	auto callback = [](void* arg) {
-		//                   ^^^ 2. We get the address of the app in the callback.
-		Application* pApp = reinterpret_cast<Application*>(arg);
-		//                  ^^^^^^^^^^^^^^^^ 3. We force this address to be interpreted
-		//                                      as a pointer to an Application object.
-		pApp->MainLoop(); // 4. We can use the application object
-		};
-	emscripten_set_main_loop_arg(callback, &app, 0, true);
-	//                                     ^^^^ 1. We pass the address of our application object.
-#else // __EMSCRIPTEN__
-	while (app.IsRunning()) {
-		app.MainLoop();
-	}
-#endif // __EMSCRIPTEN__
-
-	return 0;
+#ifdef __cplusplus
 }
+#endif
+
+#endif // _glfw3_webgpu_h_
