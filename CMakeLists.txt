@@ -5,20 +5,22 @@ project(
 	LANGUAGES CXX C
 )
 
-add_subdirectory(glfw)
+if (NOT EMSCRIPTEN)
+	add_subdirectory(glfw)
+else()
+	add_library(glfw INTERFACE)
+	target_link_options(glfw INTERFACE -sUSE_GLFW=3)
+endif()
+
 add_subdirectory(webgpu)
 add_subdirectory(glfw3webgpu)
 
 add_executable(App
 	main.cpp
-	# Moved utility functions into separate files:
-	webgpu-utils.h
-	webgpu-utils.cpp
-	Application.h
-	Application.cpp
 )
 
 target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu)
+
 target_copy_webgpu_binaries(App)
 
 set_target_properties(App PROPERTIES
