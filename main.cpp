@@ -274,7 +274,6 @@ void Application::InitializePipeline()
 {
 	ShaderModuleDescriptor shaderDesc;
 	// [...] Describe shader module
-	ShaderModule shaderModule = device.createShaderModule(shaderDesc);
 	ShaderModuleWGSLDescriptor shaderCodeDesc;
 	// Set the chained struct's header
 	shaderCodeDesc.chain.next = nullptr;
@@ -283,6 +282,8 @@ void Application::InitializePipeline()
 	shaderDesc.nextInChain = &shaderCodeDesc.chain;
 
 	shaderCodeDesc.code = shaderSource;
+
+	ShaderModule shaderModule = device.createShaderModule(shaderDesc);
 
 	RenderPipelineDescriptor pipelineDesc;
 
