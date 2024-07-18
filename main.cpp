@@ -19,14 +19,39 @@ using namespace wgpu;
 
 // Global Declarations
 const char* shaderSource = R"(
+
+/**
+ * A structure with fields labeled with vertex attribute locations can be used
+ * as input to the entry point of a shader.
+ */
+struct VertexInput {
+    @location(0) position: vec2f,
+    @location(1) color: vec3f,
+};
+
+/**
+ * A structure with fields labeled with builtins and locations can also be used
+ * as *output* of the vertex shader, which is also the input of the fragment
+ * shader.
+ */
+struct VertexOutput {
+    @builtin(position) position: vec4f,
+    // The location here does not refer to a vertex attribute, it just means that this field must be handled by the rasterizer.(It can also refer to another field of another struct that would be used as input to the fragment shader.)
+    @location(0) color: vec3f,
+};
+
+
 @vertex
-fn vs_main(@location(0) in_vertex_position: vec2f) -> @builtin(position) vec4f {
-    return vec4f(in_vertex_position, 0.0, 1.0);
+fn vs_main(in: VertexInput) -> VertexOutput {
+    var out: VertexOutput; // create the output struct
+    out.position = vec4f(in.position, 0.0, 1.0); // same as what we used to directly return
+    out.color = in.color; // forward the color attribute to the fragment shader
+    return out;
 }
 
 @fragment
-fn fs_main() -> @location(0) vec4f {
-    return vec4f(0.0, 0.4, 1.0, 1.0);
+fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+    return vec4f(in.color, 1.0);
 }
 )";
 
@@ -83,6 +108,9 @@ private:
 
 	Buffer vertexBuffer;
 	uint32_t vertexCount;
+
+	WGPUColor m_backgroundScreenColor = { 0.7, 0.7, 0.7, 1.0 };
+
 };
 
 int main() {
@@ -223,7 +251,7 @@ void Application::MainLoop() {
 	renderPassColorAttachment.resolveTarget = nullptr;
 	renderPassColorAttachment.loadOp = LoadOp::Clear;
 	renderPassColorAttachment.storeOp = StoreOp::Store;
-	renderPassColorAttachment.clearValue = WGPUColor{ 0.8, 0.2, 0.2, 1.0 };
+	renderPassColorAttachment.clearValue = m_backgroundScreenColor;
 #ifndef WEBGPU_BACKEND_WGPU
 	renderPassColorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
 #endif // NOT WEBGPU_BACKEND_WGPU
@@ -323,23 +351,26 @@ void Application::InitializePipeline()
 	// Vertex fetch
 	VertexBufferLayout vertexBufferLayout;
 	// [...] Describe the vertex buffer layout
-	VertexAttribute positionAttrib;
-	// [...] Describe the position attribute
-	// == For each attribute, describe its layout, i.e., how to interpret the raw data ==
-	// Corresponds to @location(...)
-	positionAttrib.shaderLocation = 0;
-	// Means vec2f in the shader
-	positionAttrib.format = VertexFormat::Float32x2;
-	// Index of the first element
-	positionAttrib.offset = 0;
+	// We now have 2 attributes
+	std::vector<VertexAttribute> vertexAttribs(2);
 
+	// Describe the position attribute
+	vertexAttribs[0].shaderLocation = 0; // @location(0)
+	vertexAttribs[0].format = VertexFormat::Float32x2;
+	vertexAttribs[0].offset = 0;
 
-	vertexBufferLayout.attributeCount = 1;
-	vertexBufferLayout.attributes = &positionAttrib;
+	// Describe the color attribute
+	vertexAttribs[1].shaderLocation = 1; // @location(1)
+	vertexAttribs[1].format = VertexFormat::Float32x3; // different type!
+	vertexAttribs[1].offset = 2 * sizeof(float); // non null offset!
+
+	vertexBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
+	vertexBufferLayout.attributes = vertexAttribs.data();
 
 	// [...] Describe buffer stride and step mode
 	// == Common to attributes from the same buffer ==
-	vertexBufferLayout.arrayStride = 2 * sizeof(float);
+	vertexBufferLayout.arrayStride = 5 * sizeof(float);
+	//                               ^^^^^^^^^^^^^^^^^ The new stride
 	vertexBufferLayout.stepMode = VertexStepMode::Vertex;
 
 
@@ -431,21 +462,22 @@ void Application::InitializePipeline()
 
 void Application::InitializeBuffers()
 {
-	// [...] Define vertex data
 	std::vector<float> vertexData = {
-		// Define a first triangle:
-		-0.5, -0.5,
-		+0.5, -0.5,
-		+0.0, +0.5,
+		// x0,  y0,  r0,  g0,  b0
+		-0.5, -0.5, 1.0, 0.0, 0.0,
 
-		// Add a second triangle:
-		-0.55f, -0.5,
-		-0.05f, +0.5,
-		-0.55f, +0.5
+		// x1,  y1,  r1,  g1,  b1
+		+0.5, -0.5, 0.0, 1.0, 0.0,
+
+		// ...
+		+0.0,   +0.5, 0.0, 0.0, 1.0,
+		-0.55f, -0.5, 1.0, 1.0, 0.0,
+		-0.05f, +0.5, 1.0, 0.0, 1.0,
+		-0.55f, +0.5, 0.0, 1.0, 1.0
 	};
 
-	// We will declare vertexCount as a member of the Application class
-	vertexCount = static_cast<uint32_t>(vertexData.size() / 2);
+	// We now divide the vector size by 5 fields.
+	vertexCount = static_cast<uint32_t>(vertexData.size() / 5);
 
 
 	// Create vertex buffer
@@ -555,7 +587,7 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	RequiredLimits requiredLimits = Default;
 
 	// We use at most 1 vertex attribute for now
-	requiredLimits.limits.maxVertexAttributes = 1;
+	requiredLimits.limits.maxVertexAttributes = 2;
 	// We should also tell that we use 1 vertex buffers
 	requiredLimits.limits.maxVertexBuffers = 1;
 	// Maximum size of a buffer is 6 vertices of 2 float each
