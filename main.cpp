@@ -20,16 +20,8 @@ using namespace wgpu;
 // Global Declarations
 const char* shaderSource = R"(
 @vertex
-fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> @builtin(position) vec4f {
-    var p = vec2f(0.0, 0.0);
-    if (in_vertex_index == 0u) {
-        p = vec2f(-0.5, -0.5);
-    } else if (in_vertex_index == 1u) {
-        p = vec2f(0.5, -0.5);
-    } else {
-        p = vec2f(0.0, 0.5);
-    }
-    return vec4f(p, 0.0, 1.0);
+fn vs_main(@location(0) in_vertex_position: vec2f) -> @builtin(position) vec4f {
+    return vec4f(in_vertex_position, 0.0, 1.0);
 }
 
 @fragment
@@ -72,8 +64,11 @@ private:
 	TextureView GetNextSurfaceTextureView();
 
 	void InitializePipeline();
+	void InitializeBuffers();
 
 	void PlayWithBuffers();
+
+	RequiredLimits GetRequiredLimits(Adapter adapter) const;
 
 private:
 	// We put here all the variables that are shared between init and main loop
@@ -85,6 +80,9 @@ private:
 
 	RenderPipeline pipeline;
 	TextureFormat surfaceFormat = TextureFormat::Undefined;
+
+	Buffer vertexBuffer;
+	uint32_t vertexCount;
 };
 
 int main() {
@@ -142,6 +140,11 @@ bool Application::Initialize() {
 		if (message) std::cout << " (" << message << ")";
 		std::cout << std::endl;
 	};
+
+	// Before adapter.requestDevice(deviceDesc)
+	RequiredLimits requiredLimits = GetRequiredLimits(adapter);
+	deviceDesc.requiredLimits = &requiredLimits;
+
 	device = adapter.requestDevice(deviceDesc);
 	std::cout << "Got device: " << device << std::endl;
 	
@@ -178,14 +181,17 @@ bool Application::Initialize() {
 	// At the end of Initialize()
 	InitializePipeline();
 
+	// Initialize Buffers
+	InitializeBuffers();
 
 	// Buffer experiments
-	PlayWithBuffers();
+	//PlayWithBuffers();
 	
 	return true;
 }
 
 void Application::Terminate() {
+	vertexBuffer.release();
 	pipeline.release();
 	surface.unconfigure();
 	queue.release();
@@ -232,8 +238,12 @@ void Application::MainLoop() {
 
 	// Select which render pipeline to use
 	renderPass.setPipeline(pipeline);
-	// Draw 1 instance of a 3-vertices shape
-	renderPass.draw(3, 1, 0, 0);
+
+	// Set vertex buffer while encoding the render pass
+	renderPass.setVertexBuffer(0, vertexBuffer, 0, vertexBuffer.getSize());
+
+	// We use the `vertexCount` variable instead of hard-coding the vertex count
+	renderPass.draw(vertexCount, 1, 0, 0);
 
 	renderPass.end();
 	renderPass.release();
@@ -310,9 +320,31 @@ void Application::InitializePipeline()
 	// [...] Describe vertex pipeline state
 	// Configure 'pipelineDesc.vertex'
 	// [...] Describe vertex buffers
-	// We do not use any vertex buffer for this first simplistic example
-	pipelineDesc.vertex.bufferCount = 0;
-	pipelineDesc.vertex.buffers = nullptr;
+	// Vertex fetch
+	VertexBufferLayout vertexBufferLayout;
+	// [...] Describe the vertex buffer layout
+	VertexAttribute positionAttrib;
+	// [...] Describe the position attribute
+	// == For each attribute, describe its layout, i.e., how to interpret the raw data ==
+	// Corresponds to @location(...)
+	positionAttrib.shaderLocation = 0;
+	// Means vec2f in the shader
+	positionAttrib.format = VertexFormat::Float32x2;
+	// Index of the first element
+	positionAttrib.offset = 0;
+
+
+	vertexBufferLayout.attributeCount = 1;
+	vertexBufferLayout.attributes = &positionAttrib;
+
+	// [...] Describe buffer stride and step mode
+	// == Common to attributes from the same buffer ==
+	vertexBufferLayout.arrayStride = 2 * sizeof(float);
+	vertexBufferLayout.stepMode = VertexStepMode::Vertex;
+
+
+	pipelineDesc.vertex.bufferCount = 1;
+	pipelineDesc.vertex.buffers = &vertexBufferLayout;
 	// [...] Describe vertex shader
 	// NB: We define the 'shaderModule' in the second part of this chapter.
 	// Here we tell that the programmable vertex shader stage is described
@@ -397,6 +429,36 @@ void Application::InitializePipeline()
 	shaderModule.release();
 }
 
+void Application::InitializeBuffers()
+{
+	// [...] Define vertex data
+	std::vector<float> vertexData = {
+		// Define a first triangle:
+		-0.5, -0.5,
+		+0.5, -0.5,
+		+0.0, +0.5,
+
+		// Add a second triangle:
+		-0.55f, -0.5,
+		-0.05f, +0.5,
+		-0.55f, +0.5
+	};
+
+	// We will declare vertexCount as a member of the Application class
+	vertexCount = static_cast<uint32_t>(vertexData.size() / 2);
+
+
+	// Create vertex buffer
+	BufferDescriptor bufferDesc;
+	bufferDesc.size = vertexData.size() * sizeof(float);
+	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Vertex; // Vertex usage here!
+	bufferDesc.mappedAtCreation = false;
+	vertexBuffer = device.createBuffer(bufferDesc);
+
+	// Upload geometry data to the buffer
+	queue.writeBuffer(vertexBuffer, 0, vertexData.data(), bufferDesc.size);
+}
+
 void Application::PlayWithBuffers()
 {
 	// Experimentation for the "Playing with buffer" chapter
@@ -478,4 +540,30 @@ void Application::PlayWithBuffers()
 	// [...] Release buffers
 	buffer1.release();
 	buffer2.release();
+}
+
+RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
+{
+	// Get adapter supported limits, in case we need them
+	SupportedLimits supportedLimits;
+	adapter.getLimits(&supportedLimits);
+
+	//CHECK --> std::cout << "adapter.maxVertexAttributes: " << supportedLimits.limits.maxVertexAttributes << std::endl;*/
+
+
+	// Don't forget to = Default
+	RequiredLimits requiredLimits = Default;
+
+	// We use at most 1 vertex attribute for now
+	requiredLimits.limits.maxVertexAttributes = 1;
+	// We should also tell that we use 1 vertex buffers
+	requiredLimits.limits.maxVertexBuffers = 1;
+	// Maximum size of a buffer is 6 vertices of 2 float each
+	requiredLimits.limits.maxBufferSize = 6 * 2 * sizeof(float);
+	// Maximum stride between 2 consecutive vertices in the vertex buffer
+	requiredLimits.limits.maxVertexBufferArrayStride = 2 * sizeof(float);
+
+	// [...] Other device limits
+
+	return requiredLimits;
 }
