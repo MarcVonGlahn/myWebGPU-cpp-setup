@@ -20,7 +20,6 @@ add_executable(App
 )
 
 target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu)
-
 target_copy_webgpu_binaries(App)
 
 set_target_properties(App PROPERTIES
@@ -47,3 +46,8 @@ if (EMSCRIPTEN)
 	set_target_properties(App PROPERTIES SUFFIX ".html")
 	target_link_options(App PRIVATE -sASYNCIFY)
 endif()
+
+
+target_compile_definitions(App PRIVATE
+    RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/resources"
+)
