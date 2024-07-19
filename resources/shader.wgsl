@@ -6,6 +6,7 @@ struct VertexInput {
 struct VertexOutput {
 	@builtin(position) position: vec4f,
 	@location(0) color: vec3f,
+    @location(1) passPos: vec2f,
 };
 
 /**
@@ -26,13 +27,18 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 	var offset = vec2f(-0.6875, -0.463);
 	offset += 0.3 * vec2f(cos(uMyUniforms.time), sin(uMyUniforms.time));
 	out.position = vec4f(in.position.x + offset.x, (in.position.y + offset.y) * ratio, 0.0, 1.0);
+    out.passPos = out.position.xy;
 	out.color = in.color;
 	return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-	let color = in.color.rgb; 
+	var color = in.color.rgb;
+    // color.r = color.r + in.passPos.x + 0.5f;
+    // color.g = color.g + in.passPos.y + 0.5f;
+
+    // So compiler doesn't act up
     let stay = 1.2 * uMyUniforms.color.rgb;
 	// Gamma-correction
 	let corrected_color = pow(color, vec3f(2.2));

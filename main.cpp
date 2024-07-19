@@ -669,7 +669,6 @@ void Application::UpdateUniforms()
 
 	// Upload only the time, whichever its order in the struct
 	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, time), &uniforms.time, sizeof(MyUniforms::time));
-	/*queue.writeBuffer(uniformBuffer, 0, &uniforms, sizeof(MyUniforms));*/
 
 	// Upload only the color, whichever its order in the struct
 	// queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, color), &uniforms.color, sizeof(MyUniforms::color));
