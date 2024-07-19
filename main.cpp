@@ -13,48 +13,13 @@
 #include <cassert>
 #include <vector>
 
+#include <array>
+
+#include <cmath>
+
 // Avoid the "wgpu::" prefix in front of all WebGPU symbols
 using namespace wgpu;
 
-
-// Global Declarations
-//const char* shaderSource = R"(
-//
-///**
-// * A structure with fields labeled with vertex attribute locations can be used
-// * as input to the entry point of a shader.
-// */
-//struct VertexInput {
-//    @location(0) position: vec2f,
-//    @location(1) color: vec3f,
-//};
-//
-///**
-// * A structure with fields labeled with builtins and locations can also be used
-// * as *output* of the vertex shader, which is also the input of the fragment
-// * shader.
-// */
-//struct VertexOutput {
-//    @builtin(position) position: vec4f,
-//    // The location here does not refer to a vertex attribute, it just means that this field must be handled by the rasterizer.(It can also refer to another field of another struct that would be used as input to the fragment shader.)
-//    @location(0) color: vec3f,
-//};
-//
-//
-//@vertex
-//fn vs_main(in: VertexInput) -> VertexOutput {
-//	let ratio = 640.0 / 480.0; // The width and height of the target surface
-//    var out: VertexOutput; // create the output struct
-//	out.position = vec4f(in.position.x, in.position.y * ratio, 0.0, 1.0);
-//    out.color = in.color; // forward the color attribute to the fragment shader
-//    return out;
-//}
-//
-//@fragment
-//fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-//    return vec4f(in.color, 1.0);
-//}
-//)";
 
 
 // We define a function that hides implementation-specific variants of device polling:
@@ -168,7 +133,23 @@ ShaderModule Parser::loadShaderModule(const fs::path& path, Device device)
 #pragma endregion
 
 
+#pragma region Uniforms
 
+struct MyUniforms {
+	// offset = 0 * sizeof(vec4f) -> OK
+	std::array<float, 4> color;
+
+	// offset = 16 = 4 * sizeof(f32) -> OK
+	float time;
+
+
+	float _pad[3]; // Total size must be a multiple of the alignment size of its largest field (16 Bytes in this case), so add padding
+};
+
+// Have the compiler check byte alignment
+static_assert(sizeof(MyUniforms) % 16 == 0);
+
+#pragma endregion
 
 class Application {
 public:
@@ -213,6 +194,8 @@ private:
 	uint32_t indexCount;
 
 	BindGroup m_bindGroup;
+
+	MyUniforms uniforms;
 
 	WGPUColor m_backgroundScreenColor = { 0.7, 0.7, 0.7, 1.0 };
 
@@ -559,13 +542,20 @@ void Application::InitializePipeline()
 
 
 	// Create uniform buffer
-	// The buffer will only contain 1 float with the value of uTime
+	// The buffer will now contain MyUniforms
 	BufferDescriptor bufferDesc;
-	bufferDesc.size = sizeof(float);
+	bufferDesc.size = sizeof(MyUniforms);
 	// Make sure to flag the buffer as BufferUsage::Uniform
 	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Uniform;
 	bufferDesc.mappedAtCreation = false;
 	uniformBuffer = device.createBuffer(bufferDesc);
+
+	// Upload the initial value of the uniforms
+	uniforms = MyUniforms();
+
+	uniforms.color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	uniforms.time = 1.0f;
+	queue.writeBuffer(uniformBuffer, 0, &uniforms, sizeof(MyUniforms));
 
 
 
@@ -577,10 +567,10 @@ void Application::InitializePipeline()
 	bindingLayout.binding = 0;
 
 	// The stage that needs to access this resource
-	bindingLayout.visibility = ShaderStage::Vertex;
+	bindingLayout.visibility = ShaderStage::Vertex | ShaderStage::Fragment;
 
 	bindingLayout.buffer.type = BufferBindingType::Uniform;
-	bindingLayout.buffer.minBindingSize = sizeof(float);
+	bindingLayout.buffer.minBindingSize = sizeof(MyUniforms);
 	bindingLayout.buffer.hasDynamicOffset = 0;
 
 	// Create a bind group layout
@@ -613,7 +603,7 @@ void Application::InitializePipeline()
 	// multiple uniform blocks.
 	binding.offset = 0;
 	// And we specify again the size of the buffer.
-	binding.size = sizeof(float);
+	binding.size = sizeof(MyUniforms);
 
 
 
@@ -669,17 +659,22 @@ void Application::InitializeBuffers()
 	queue.writeBuffer(indexBuffer, 0, indexData.data(), bufferDesc.size);
 
 	// # Creation of Uniform Buffer is done in InitializePipeline(), because uniform Buffer is assigned earlier there already ###
-
-	float currentTime = 1.0f;
-	queue.writeBuffer(uniformBuffer, 0, &currentTime, sizeof(float));
 }
+
 
 void Application::UpdateUniforms()
 {
-	// Update uniform buffer
-	float t = static_cast<float>(glfwGetTime()); // glfwGetTime returns a double
-	queue.writeBuffer(uniformBuffer, 0, &t, sizeof(float));
+	uniforms.time = static_cast<float>(glfwGetTime());
+	// uniforms.color = { 5.0f * cos(uniforms.time), sin(uniforms.time), -sin(uniforms.time), 1.0f};
+
+	// Upload only the time, whichever its order in the struct
+	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, time), &uniforms.time, sizeof(MyUniforms::time));
+	/*queue.writeBuffer(uniformBuffer, 0, &uniforms, sizeof(MyUniforms));*/
+
+	// Upload only the color, whichever its order in the struct
+	// queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, color), &uniforms.color, sizeof(MyUniforms::color));
 }
+
 
 void Application::PlayWithBuffers()
 {
@@ -763,6 +758,7 @@ void Application::PlayWithBuffers()
 	buffer1.release();
 	buffer2.release();
 }
+
 
 RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 {
