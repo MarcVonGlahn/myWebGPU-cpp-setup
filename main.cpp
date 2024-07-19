@@ -190,6 +190,8 @@ private:
 	void InitializePipeline();
 	void InitializeBuffers();
 
+	void UpdateUniforms();
+
 	void PlayWithBuffers();
 
 	RequiredLimits GetRequiredLimits(Adapter adapter) const;
@@ -207,7 +209,10 @@ private:
 
 	Buffer pointBuffer;
 	Buffer indexBuffer;
+	Buffer uniformBuffer;
 	uint32_t indexCount;
+
+	BindGroup m_bindGroup;
 
 	WGPUColor m_backgroundScreenColor = { 0.7, 0.7, 0.7, 1.0 };
 
@@ -333,6 +338,8 @@ void Application::Terminate() {
 void Application::MainLoop() {
 	glfwPollEvents();
 
+	UpdateUniforms();
+
 	// Get the next target texture view
 	TextureView targetView = GetNextSurfaceTextureView();
 	if (!targetView) return;
@@ -376,6 +383,9 @@ void Application::MainLoop() {
 
 	// Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
 	// The extra argument is an offset within the index buffer.
+	// Set binding group
+	renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
+
 	renderPass.drawIndexed(indexCount, 1, 0, 0, 0);
 
 	renderPass.end();
@@ -546,11 +556,79 @@ void Application::InitializePipeline()
 	// Default value as well (irrelevant for count = 1 anyways)
 	pipelineDesc.multisample.alphaToCoverageEnabled = false;
 
-	// [...] Describe pipeline layout
-	pipelineDesc.layout = nullptr;
 
+
+	// Create uniform buffer
+	// The buffer will only contain 1 float with the value of uTime
+	BufferDescriptor bufferDesc;
+	bufferDesc.size = sizeof(float);
+	// Make sure to flag the buffer as BufferUsage::Uniform
+	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Uniform;
+	bufferDesc.mappedAtCreation = false;
+	uniformBuffer = device.createBuffer(bufferDesc);
+
+
+
+	// [...] Define bindingLayout
+	// Create binding layout (don't forget to = Default)
+	BindGroupLayoutEntry bindingLayout = Default;
+
+	// The binding index as used in the @binding attribute in the shader
+	bindingLayout.binding = 0;
+
+	// The stage that needs to access this resource
+	bindingLayout.visibility = ShaderStage::Vertex;
+
+	bindingLayout.buffer.type = BufferBindingType::Uniform;
+	bindingLayout.buffer.minBindingSize = sizeof(float);
+	bindingLayout.buffer.hasDynamicOffset = 0;
+
+	// Create a bind group layout
+	BindGroupLayoutDescriptor bindGroupLayoutDesc;
+	bindGroupLayoutDesc.entryCount = 1;
+	bindGroupLayoutDesc.entries = &bindingLayout;
+	BindGroupLayout bindGroupLayout = device.createBindGroupLayout(bindGroupLayoutDesc);
+
+
+
+	// Create the pipeline layout
+	PipelineLayoutDescriptor layoutDesc;
+	layoutDesc.bindGroupLayoutCount = 1;
+	layoutDesc.bindGroupLayouts = (WGPUBindGroupLayout*)&bindGroupLayout;
+	PipelineLayout layout = device.createPipelineLayout(layoutDesc);
+
+	// Assign the PipelineLayout to the RenderPipelineDescriptor's layout field
+	pipelineDesc.layout = layout;
+
+
+
+	// Create a binding
+	BindGroupEntry binding;
+	
+	// The index of the binding (the entries in bindGroupDesc can be in any order)
+	binding.binding = 0;
+	// The buffer it is actually bound to
+	binding.buffer = uniformBuffer;
+	// We can specify an offset within the buffer, so that a single buffer can hold
+	// multiple uniform blocks.
+	binding.offset = 0;
+	// And we specify again the size of the buffer.
+	binding.size = sizeof(float);
+
+
+
+	// A bind group contains one or multiple bindings
+	BindGroupDescriptor bindGroupDesc;
+	bindGroupDesc.label = "Uniform Bind Group 1";
+	bindGroupDesc.layout = bindGroupLayout;
+	// There must be as many bindings as declared in the layout!
+	bindGroupDesc.entryCount = bindGroupLayoutDesc.entryCount;
+	bindGroupDesc.entries = &binding;
+	m_bindGroup = device.createBindGroup(bindGroupDesc);
 
 	pipeline = device.createRenderPipeline(pipelineDesc);
+
+
 
 	// We no longer need to access the shader module
 	shaderModule.release();
@@ -589,6 +667,18 @@ void Application::InitializeBuffers()
 	indexBuffer = device.createBuffer(bufferDesc);
 
 	queue.writeBuffer(indexBuffer, 0, indexData.data(), bufferDesc.size);
+
+	// # Creation of Uniform Buffer is done in InitializePipeline(), because uniform Buffer is assigned earlier there already ###
+
+	float currentTime = 1.0f;
+	queue.writeBuffer(uniformBuffer, 0, &currentTime, sizeof(float));
+}
+
+void Application::UpdateUniforms()
+{
+	// Update uniform buffer
+	float t = static_cast<float>(glfwGetTime()); // glfwGetTime returns a double
+	queue.writeBuffer(uniformBuffer, 0, &t, sizeof(float));
 }
 
 void Application::PlayWithBuffers()
@@ -683,19 +773,20 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	//CHECK --> std::cout << "adapter.maxVertexAttributes: " << supportedLimits.limits.maxVertexAttributes << std::endl;*/
 
 
-	// Don't forget to = Default
 	RequiredLimits requiredLimits = Default;
-
-	// We use at most 1 vertex attribute for now
 	requiredLimits.limits.maxVertexAttributes = 2;
-	// We should also tell that we use 1 vertex buffers
 	requiredLimits.limits.maxVertexBuffers = 1;
-	// Maximum size of a buffer is 6 vertices of 2 float each
-	requiredLimits.limits.maxBufferSize = 6 * 2 * sizeof(float);
-	// Maximum stride between 2 consecutive vertices in the vertex buffer
-	requiredLimits.limits.maxVertexBufferArrayStride = 2 * sizeof(float);
-
-	// [...] Other device limits
+	requiredLimits.limits.maxBufferSize = 15 * 5 * sizeof(float);
+	requiredLimits.limits.maxVertexBufferArrayStride = 5 * sizeof(float);
+	requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
+	requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
+	requiredLimits.limits.maxInterStageShaderComponents = 3;
+	// We use at most 1 bind group for now
+	requiredLimits.limits.maxBindGroups = 1;
+	// We use at most 1 uniform buffer per stage
+	requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
+	// Uniform structs have a size of maximum 16 float
+	requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
 
 	return requiredLimits;
 }
