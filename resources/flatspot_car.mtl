@@ -1,0 +1,52 @@
+# Blender 3.6.5 MTL File: 'Spec_Monocoque_AA_001.blend'
+# www.blender.org
+
+newmtl Material
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd C:/Users/marcv/Unity/FlatSpot_Unity/flatspot_spielplatz/FlatSpot_Spielplatz/Assets/_Project/Texture/CarParts/Tires/Texture_Tire_Front_Rim_Prime.png
+
+newmtl Material_Driver
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd C:/Unity/FlatSpot/flatspot_spielplatz/FlatSpot_Spielplatz/Assets/_Project/Texture/Driver/Texture_Driver_Helmet_Spec.png
+
+newmtl Material_FrontTire
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+
+newmtl Material_RearTire
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd C:/Unity/FlatSpot/flatspot_spielplatz/FlatSpot_Spielplatz/Assets/_Project/Texture/CarParts/Tires/Texture_Tire_Rear.png
+
+newmtl Material_Rear_New
+Ns 250.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd C:/Users/marcv/Unity/FlatSpot_Unity/flatspot_spielplatz/FlatSpot_Spielplatz/Assets/_Project/Resources/Textures/Texture_Tire_Rear_Rim_Template.png

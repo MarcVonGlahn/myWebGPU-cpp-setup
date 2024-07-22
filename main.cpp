@@ -9,6 +9,11 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_LEFT_HANDED
 #include <glm/glm.hpp> // all types inspired from GLSL
+// #include <glm/ext.hpp> --> Can't use this, give me error in type_quat.hpp
+
+
+#define TINYOBJLOADER_IMPLEMENTATION // add this to exactly 1 of your C++ files
+#include "tiny_obj_loader.h"
 
 #ifdef __EMSCRIPTEN__
 #  include <emscripten.h>
@@ -44,6 +49,41 @@ void wgpuPollEvents([[maybe_unused]] Device device, [[maybe_unused]] bool yieldT
 }
 
 
+
+
+
+#pragma region Uniforms
+
+struct MyUniforms {
+	glm::mat4x4 projectionMatrix;
+	glm::mat4x4 viewMatrix;
+	glm::mat4x4 modelMatrix;
+	glm::vec4 color;
+	float time;
+	float _pad[3]; // Total size must be a multiple of the alignment size of its largest field (16 Bytes in this case), so add padding
+};
+
+// Have the compiler check byte alignment
+static_assert(sizeof(MyUniforms) % 16 == 0);
+
+#pragma endregion
+
+
+#pragma region Vertex Attributes
+
+/**
+ * A structure that describes the data layout in the vertex buffer
+ * We do not instantiate it but use it in `sizeof` and `offsetof`
+ */
+struct VertexAttributes {
+	glm::vec3 position;
+	glm::vec3 normal;
+	glm::vec3 color;
+};
+
+#pragma endregion
+
+
 #pragma region Parser
 
 #include <filesystem>
@@ -56,6 +96,8 @@ namespace fs = std::filesystem;
 class Parser {
 public:
 	static bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData, int dimensions);
+
+	static bool loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& vertexData);
 
 	static ShaderModule loadShaderModule(const fs::path& path, Device device);
 };
@@ -117,6 +159,64 @@ bool Parser::loadGeometry(const fs::path& path, std::vector<float>& pointData, s
 	return true;
 }
 
+bool Parser::loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& vertexData)
+{
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+
+	std::string warn;
+	std::string err;
+
+	// Call the core loading procedure of TinyOBJLoader
+	bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.string().c_str());
+
+	// Check errors
+	if (!warn.empty()) {
+		std::cout << warn << std::endl;
+	}
+
+	if (!err.empty()) {
+		std::cerr << err << std::endl;
+	}
+
+	if (!ret) {
+		return false;
+	}
+
+	// Filling in vertexData:
+	vertexData.clear();
+	for (const auto& shape : shapes) {
+		size_t offset = vertexData.size();
+		vertexData.resize(offset + shape.mesh.indices.size());
+
+		for (size_t i = 0; i < shape.mesh.indices.size(); ++i) {
+			const tinyobj::index_t& idx = shape.mesh.indices[i];
+
+			vertexData[offset + i].position = {
+				attrib.vertices[3 * idx.vertex_index + 0],
+				-attrib.vertices[3 * idx.vertex_index + 2], // Add a minus to avoid mirroring
+				attrib.vertices[3 * idx.vertex_index + 1]
+			};
+
+			// Also apply the transform to normals!!
+			vertexData[offset + i].normal = {
+				attrib.normals[3 * idx.normal_index + 0],
+				-attrib.normals[3 * idx.normal_index + 2],
+				attrib.normals[3 * idx.normal_index + 1]
+			};
+
+			vertexData[offset + i].color = {
+				attrib.colors[3 * idx.vertex_index + 0],
+				attrib.colors[3 * idx.vertex_index + 1],
+				attrib.colors[3 * idx.vertex_index + 2]
+			};
+		}
+	}
+
+	return true;
+}
+
 ShaderModule Parser::loadShaderModule(const fs::path& path, Device device)
 {
 	std::ifstream file(path);
@@ -137,38 +237,6 @@ ShaderModule Parser::loadShaderModule(const fs::path& path, Device device)
 	shaderDesc.nextInChain = &shaderCodeDesc.chain;
 	return device.createShaderModule(shaderDesc);
 }
-
-#pragma endregion
-
-
-#pragma region Uniforms
-
-struct MyUniforms {
-	glm::mat4x4 projectionMatrix;
-	glm::mat4x4 viewMatrix;
-	glm::mat4x4 modelMatrix;
-	glm::vec4 color;
-	float time;
-	float _pad[3]; // Total size must be a multiple of the alignment size of its largest field (16 Bytes in this case), so add padding
-};
-
-// Have the compiler check byte alignment
-static_assert(sizeof(MyUniforms) % 16 == 0);
-
-#pragma endregion
-
-
-#pragma region Vertex Attributes
-
-/**
- * A structure that describes the data layout in the vertex buffer
- * We do not instantiate it but use it in `sizeof` and `offsetof`
- */
-struct VertexAttributes {
-	glm::vec3 position;
-	glm::vec3 normal;
-	glm::vec3 color;
-};
 
 #pragma endregion
 
@@ -216,8 +284,11 @@ private:
 	Texture depthTexture;
 	TextureView depthTextureView;
 
+	std::vector<VertexAttributes> vertexData;
+
 	Buffer pointBuffer;
 	Buffer indexBuffer;
+	Buffer vertexBuffer;
 	Buffer uniformBuffer;
 	uint32_t indexCount;
 
@@ -227,6 +298,10 @@ private:
 
 	WGPUColor m_backgroundScreenColor = { 0.7, 0.7, 0.7, 1.0 };
 
+	// Object Matrices
+	glm::mat4x4 R1;
+	glm::mat4x4 T1;
+	glm::mat4x4 S;
 };
 
 int main() {
@@ -410,17 +485,15 @@ void Application::MainLoop() {
 	renderPass.setPipeline(pipeline);
 
 	// Set both vertex and index buffers
-	renderPass.setVertexBuffer(0, pointBuffer, 0, pointBuffer.getSize());
+	renderPass.setVertexBuffer(0, vertexBuffer, 0, vertexData.size() * sizeof(VertexAttributes));
 	// The second argument must correspond to the choice of uint16_t or uint32_t
-	// we've done when creating the index buffer.
-	renderPass.setIndexBuffer(indexBuffer, IndexFormat::Uint16, 0, indexBuffer.getSize());
 
 	// Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
 	// The extra argument is an offset within the index buffer.
 	// Set binding group
 	renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
 
-	renderPass.drawIndexed(indexCount, 1, 0, 0, 0);
+	renderPass.draw(indexCount, 1, 0, 0);
 
 	renderPass.end();
 	renderPass.release();
@@ -728,32 +801,28 @@ void Application::InitializeBuffers()
 	std::vector<float> pointData;
 	std::vector<uint16_t> indexData;
 
-	bool success = Parser::loadGeometry(RESOURCE_DIR "/pyramid.txt", pointData, indexData, 6);
+	// Load mesh data from OBJ file
+	bool success = Parser::loadGeometryFromObj(RESOURCE_DIR "/flatspot_car.obj", vertexData);
 	if (!success) {
 		std::cerr << "Could not load geometry!" << std::endl;
 		return;
 	}
 
-	indexCount = static_cast<uint32_t>(indexData.size());
-
 	// Create vertex buffer
 	BufferDescriptor bufferDesc;
-	bufferDesc.size = pointData.size() * sizeof(float);
-	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Vertex; // Vertex usage here!
+	bufferDesc.size = vertexData.size() * sizeof(VertexAttributes); // changed
+	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Vertex;
 	bufferDesc.mappedAtCreation = false;
-	pointBuffer = device.createBuffer(bufferDesc);
+	vertexBuffer = device.createBuffer(bufferDesc);
+	queue.writeBuffer(vertexBuffer, 0, vertexData.data(), bufferDesc.size); // changed
 
-	// Upload geometry data to the buffer
-	queue.writeBuffer(pointBuffer, 0, pointData.data(), bufferDesc.size);
+	indexCount = static_cast<uint16_t>(vertexData.size()); // changed
 
 	// Create index buffer
 	// (we reuse the bufferDesc initialized for the pointBuffer)
-	bufferDesc.size = indexData.size() * sizeof(uint16_t);
-	bufferDesc.size = (bufferDesc.size + 3) & ~3; // round up to the next multiple of 4
-	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Index;
-	indexBuffer = device.createBuffer(bufferDesc);
+	// indexBuffer = device.createBuffer(bufferDesc);
 
-	queue.writeBuffer(indexBuffer, 0, indexData.data(), bufferDesc.size);
+	// queue.writeBuffer(indexBuffer, 0, indexData.data(), bufferDesc.size);
 
 	// # Creation of Uniform Buffer is done in InitializePipeline(), because uniform Buffer is assigned earlier there already ###
 }
@@ -766,23 +835,18 @@ void Application::InitializeUniforms()
 
 	// Option A: Manually define matrices
 	// Scale the object
-	glm::mat4x4 S = transpose(glm::mat4x4(
-		0.3, 0.0, 0.0, 0.0,
-		0.0, 0.3, 0.0, 0.0,
-		0.0, 0.0, 0.3, 0.0,
-		0.0, 0.0, 0.0, 1.0
-	));
+	S = transpose(glm::mat4x4(1.0f));
 
 	// Translate the object
-	glm::mat4x4 T1 = transpose(glm::mat4x4(
-		1.0, 0.0, 0.0, 0.5,
+	T1 = transpose(glm::mat4x4(
+		1.0, 0.0, 0.0, 0.0,
 		0.0, 1.0, 0.0, 0.0,
 		0.0, 0.0, 1.0, 0.0,
 		0.0, 0.0, 0.0, 1.0
 	));
 
 	// Translate the view
-	glm::vec3 focalPoint(0.0, 0.0, -2.0);
+	glm::vec3 focalPoint(0.0, 0.0, -3.0);
 	glm::mat4x4 T2 = transpose(glm::mat4x4(
 		1.0, 0.0, 0.0, -focalPoint.x,
 		0.0, 1.0, 0.0, -focalPoint.y,
@@ -791,10 +855,10 @@ void Application::InitializeUniforms()
 	));
 
 	// Rotate the object
-	float angle1 = 2.0f; // arbitrary time
+	float angle1 = 1.0f; // arbitrary time
 	float c1 = cos(angle1);
 	float s1 = sin(angle1);
-	glm::mat4x4 R1 = transpose(glm::mat4x4(
+	R1 = transpose(glm::mat4x4(
 		c1, s1, 0.0, 0.0,
 		-s1, c1, 0.0, 0.0,
 		0.0, 0.0, 1.0, 0.0,
@@ -816,7 +880,7 @@ void Application::InitializeUniforms()
 	uniforms.viewMatrix = T2 * R2;
 
 	float ratio = 640.0f / 480.0f;
-	float focalLength = 2.0;
+	float focalLength = 1.5f;
 	float near = 0.01f;
 	float far = 100.0f;
 	float divider = 1 / (focalLength * (far - near));
@@ -835,21 +899,25 @@ void Application::InitializeUniforms()
 
 void Application::UpdateUniforms()
 {
-	// Update view matrix
-	float angle1 = uniforms.time;
-	R1 = glm::rotate(glm::mat4x4(1.0), angle1, glm::vec3(0.0, 0.0, 1.0));
-	uniforms.modelMatrix = R1 * T1 * S;
-	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, modelMatrix), &uniforms.modelMatrix, sizeof(MyUniforms::modelMatrix));
-
-
 	uniforms.time = static_cast<float>(glfwGetTime());
 	// uniforms.color = { 5.0f * cos(uniforms.time), sin(uniforms.time), -sin(uniforms.time), 1.0f};
 
 	// Upload only the time, whichever its order in the struct
 	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, time), &uniforms.time, sizeof(MyUniforms::time));
 
-	// Upload only the color, whichever its order in the struct
-	// queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, color), &uniforms.color, sizeof(MyUniforms::color));
+	// Update view matrix
+	float angle1 = uniforms.time; // arbitrary time
+	float c1 = cos(angle1);
+	float s1 = sin(angle1);
+	R1 = transpose(glm::mat4x4(
+		c1, s1, 0.0, 0.0,
+		-s1, c1, 0.0, 0.0,
+		0.0, 0.0, 1.0, 0.0,
+		0.0, 0.0, 0.0, 1.0
+	));
+
+	uniforms.modelMatrix = R1 * T1 * S;
+	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, modelMatrix), &uniforms.modelMatrix, sizeof(MyUniforms::modelMatrix));
 }
 
 
@@ -949,7 +1017,7 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	RequiredLimits requiredLimits = Default;
 	requiredLimits.limits.maxVertexAttributes = 3;
 	requiredLimits.limits.maxVertexBuffers = 1;
-	requiredLimits.limits.maxBufferSize = 16 * sizeof(VertexAttributes);
+	requiredLimits.limits.maxBufferSize = 10000 * sizeof(VertexAttributes);
 	requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
 	requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
 	requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
