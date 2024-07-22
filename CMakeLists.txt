@@ -19,6 +19,8 @@ add_executable(App
 	main.cpp
 )
 
+target_include_directories(App PRIVATE .)
+
 target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu)
 target_copy_webgpu_binaries(App)
 
