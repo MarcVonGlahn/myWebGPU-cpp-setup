@@ -602,7 +602,7 @@ class ObjReader {
 /// or not.
 /// Option 'default_vcols_fallback' specifies whether vertex colors should
 /// always be defined, even if no colors are given (fallback to white).
-bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *warn,
              std::string *err, const char *filename,
              const char *mtl_basedir = NULL, bool triangulate = true,
@@ -614,7 +614,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 /// Returns true when loading .obj/.mtl become success.
 /// Returns warning message into `warn`, and error message into `err`
 /// See `examples/callback_api/` for how to use this function.
-bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
+inline bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
                          void *user_data = NULL,
                          MaterialReader *readMatFn = NULL,
                          std::string *warn = NULL, std::string *err = NULL);
@@ -623,14 +623,14 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
 /// std::istream for materials.
 /// Returns true when loading .obj become success.
 /// Returns warning and error message into `err`
-bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *warn,
              std::string *err, std::istream *inStream,
              MaterialReader *readMatFn = NULL, bool triangulate = true,
              bool default_vcols_fallback = true);
 
 /// Loads materials into std::map
-void LoadMtl(std::map<std::string, int> *material_map,
+inline void LoadMtl(std::map<std::string, int> *material_map,
              std::vector<material_t> *materials, std::istream *inStream,
              std::string *warning, std::string *err);
 
@@ -642,7 +642,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
 /// @param[out] texopt Parsed texopt
 /// @param[in] linebuf Input string
 ///
-bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
+inline bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
                                const char *linebuf);
 
 /// =<<========== Legacy v1 API =============================================
@@ -688,7 +688,7 @@ bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
 
 namespace tinyobj {
 
-MaterialReader::~MaterialReader() {}
+inline MaterialReader::~MaterialReader() {}
 
 struct vertex_index_t {
   int v_idx, vt_idx, vn_idx;
@@ -1244,7 +1244,7 @@ static vertex_index_t parseRawTriple(const char **token) {
   return vi;
 }
 
-bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
+inline bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
                                const char *linebuf) {
   // @todo { write more robust lexer and parser. }
   bool found_texname = false;
@@ -2040,7 +2040,7 @@ static std::string JoinPath(const std::string &dir,
   }
 }
 
-void LoadMtl(std::map<std::string, int> *material_map,
+inline void LoadMtl(std::map<std::string, int> *material_map,
              std::vector<material_t> *materials, std::istream *inStream,
              std::string *warning, std::string *err) {
   (void)err;
@@ -2440,7 +2440,7 @@ void LoadMtl(std::map<std::string, int> *material_map,
   }
 }
 
-bool MaterialFileReader::operator()(const std::string &matId,
+inline bool MaterialFileReader::operator()(const std::string &matId,
                                     std::vector<material_t> *materials,
                                     std::map<std::string, int> *matMap,
                                     std::string *warn, std::string *err) {
@@ -2499,7 +2499,7 @@ bool MaterialFileReader::operator()(const std::string &matId,
   }
 }
 
-bool MaterialStreamReader::operator()(const std::string &matId,
+inline bool MaterialStreamReader::operator()(const std::string &matId,
                                       std::vector<material_t> *materials,
                                       std::map<std::string, int> *matMap,
                                       std::string *warn, std::string *err) {
@@ -2519,7 +2519,7 @@ bool MaterialStreamReader::operator()(const std::string &matId,
   return true;
 }
 
-bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *warn,
              std::string *err, const char *filename, const char *mtl_basedir,
              bool triangulate, bool default_vcols_fallback) {
@@ -2555,7 +2555,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                  triangulate, default_vcols_fallback);
 }
 
-bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *warn,
              std::string *err, std::istream *inStream,
              MaterialReader *readMatFn /*= NULL*/, bool triangulate,
@@ -3115,7 +3115,7 @@ bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   return true;
 }
 
-bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
+inline bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
                          void *user_data /*= NULL*/,
                          MaterialReader *readMatFn /*= NULL*/,
                          std::string *warn, /* = NULL*/
@@ -3410,7 +3410,7 @@ bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
   return true;
 }
 
-bool ObjReader::ParseFromFile(const std::string &filename,
+inline bool ObjReader::ParseFromFile(const std::string &filename,
                               const ObjReaderConfig &config) {
   std::string mtl_search_path;
 
@@ -3434,7 +3434,7 @@ bool ObjReader::ParseFromFile(const std::string &filename,
   return valid_;
 }
 
-bool ObjReader::ParseFromString(const std::string &obj_text,
+inline bool ObjReader::ParseFromString(const std::string &obj_text,
                                 const std::string &mtl_text,
                                 const ObjReaderConfig &config) {
   std::stringbuf obj_buf(obj_text);
