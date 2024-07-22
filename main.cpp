@@ -167,6 +167,7 @@ public:
 
 private:
 	TextureView GetNextSurfaceTextureView();
+	void SetupDepthTextureView();
 
 	void InitializePipeline();
 	void InitializeBuffers();
@@ -187,6 +188,10 @@ private:
 
 	RenderPipeline pipeline;
 	TextureFormat surfaceFormat = TextureFormat::Undefined;
+	TextureFormat depthTextureFormat = TextureFormat::Undefined;
+
+	Texture depthTexture;
+	TextureView depthTextureView;
 
 	Buffer pointBuffer;
 	Buffer indexBuffer;
@@ -307,6 +312,10 @@ bool Application::Initialize() {
 }
 
 void Application::Terminate() {
+	depthTextureView.release();
+	depthTexture.destroy();
+	depthTexture.release();
+
 	pointBuffer.release();
 	indexBuffer.release();
 	pipeline.release();
@@ -326,6 +335,8 @@ void Application::MainLoop() {
 	// Get the next target texture view
 	TextureView targetView = GetNextSurfaceTextureView();
 	if (!targetView) return;
+
+	SetupDepthTextureView();
 
 	// Create a command encoder for the draw call
 	CommandEncoderDescriptor encoderDesc = {};
@@ -349,7 +360,30 @@ void Application::MainLoop() {
 
 	renderPassDesc.colorAttachmentCount = 1;
 	renderPassDesc.colorAttachments = &renderPassColorAttachment;
-	renderPassDesc.depthStencilAttachment = nullptr;
+	// We now add a depth/stencil attachment:
+	RenderPassDepthStencilAttachment depthStencilAttachment;
+	// The view of the depth texture
+	depthStencilAttachment.view = depthTextureView;
+
+	// The initial value of the depth buffer, meaning "far"
+	depthStencilAttachment.depthClearValue = 1.0f;
+	// Operation settings comparable to the color attachment
+	depthStencilAttachment.depthLoadOp = LoadOp::Clear;
+	depthStencilAttachment.depthStoreOp = StoreOp::Store;
+	// we could turn off writing to the depth buffer globally here
+	depthStencilAttachment.depthReadOnly = false;
+
+	// Stencil setup, mandatory but unused
+	depthStencilAttachment.stencilClearValue = 0;
+	depthStencilAttachment.stencilLoadOp = LoadOp::Undefined;
+	depthStencilAttachment.stencilStoreOp = StoreOp::Undefined;
+	depthStencilAttachment.stencilReadOnly = true;
+	
+	// This part could act up, because I use Dawn
+	/*constexpr auto NaNf = std::numeric_limits<float>::quiet_NaN();
+	depthStencilAttachment.clearDepth = NaNf;*/
+
+	renderPassDesc.depthStencilAttachment = &depthStencilAttachment;
 	renderPassDesc.timestampWrites = nullptr;
 
 	// Create the render pass and end it immediately (we only clear the screen but do not draw anything)
@@ -425,6 +459,33 @@ TextureView Application::GetNextSurfaceTextureView() {
 
 	return targetView;
 }
+
+void Application::SetupDepthTextureView()
+{
+	// Create the depth texture
+	TextureDescriptor depthTextureDesc;
+	depthTextureDesc.dimension = TextureDimension::_2D;
+	depthTextureDesc.format = depthTextureFormat;
+	depthTextureDesc.mipLevelCount = 1;
+	depthTextureDesc.sampleCount = 1;
+	depthTextureDesc.size = { 640, 480, 1 };
+	depthTextureDesc.usage = TextureUsage::RenderAttachment;
+	depthTextureDesc.viewFormatCount = 1;
+	depthTextureDesc.viewFormats = (WGPUTextureFormat*)&depthTextureFormat;
+	depthTexture = device.createTexture(depthTextureDesc);
+
+	// Create the view of the depth texture manipulated by the rasterizer
+	TextureViewDescriptor depthTextureViewDesc;
+	depthTextureViewDesc.aspect = TextureAspect::DepthOnly;
+	depthTextureViewDesc.baseArrayLayer = 0;
+	depthTextureViewDesc.arrayLayerCount = 1;
+	depthTextureViewDesc.baseMipLevel = 0;
+	depthTextureViewDesc.mipLevelCount = 1;
+	depthTextureViewDesc.dimension = TextureViewDimension::_2D;
+	depthTextureViewDesc.format = depthTextureFormat;
+	depthTextureView = depthTexture.createView(depthTextureViewDesc);
+}
+
 
 void Application::InitializePipeline()
 {
@@ -528,8 +589,24 @@ void Application::InitializePipeline()
 
 
 	// [...] Describe stencil/depth pipeline state
-	// We do not use stencil/depth testing for now
-	pipelineDesc.depthStencil = nullptr;
+	DepthStencilState depthStencilState = Default;
+
+	// A fragment is blended only if its depth is less than the current value of the Z-Buffer
+	depthStencilState.depthCompare = CompareFunction::Less;
+
+	// We want to write the new depth each time a fragment is blended
+	depthStencilState.depthWriteEnabled = true;
+
+	// Store the format in a variable as later parts of the code depend on it
+	depthTextureFormat = TextureFormat::Depth24Plus;
+	depthStencilState.format = depthTextureFormat;
+
+	// Deactivate the stencil alltogether
+	depthStencilState.stencilReadMask = 0;
+	depthStencilState.stencilWriteMask = 0;
+
+	// Setup depth state
+	pipelineDesc.depthStencil = &depthStencilState;
 
 	// [...] Describe multi-sampling state
 	// Samples per pixel
@@ -782,6 +859,11 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
 	// Uniform structs have a size of maximum 16 float
 	requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4;
+
+	// For the depth buffer, we enable textures (up to the size of the window):
+	requiredLimits.limits.maxTextureDimension1D = 480;
+	requiredLimits.limits.maxTextureDimension2D = 640;
+	requiredLimits.limits.maxTextureArrayLayers = 1;
 
 	return requiredLimits;
 }
