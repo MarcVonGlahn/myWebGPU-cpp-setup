@@ -47,12 +47,12 @@ namespace fs = std::filesystem;
 
 class Parser {
 public:
-	static bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData);
+	static bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData, int dimensions);
 
 	static ShaderModule loadShaderModule(const fs::path& path, Device device);
 };
 
-bool Parser::loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData)
+bool Parser::loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData, int dimensions)
 {
 	std::ifstream file(path);
 	if (!file.is_open()) {
@@ -92,7 +92,7 @@ bool Parser::loadGeometry(const fs::path& path, std::vector<float>& pointData, s
 		else if (currentSection == Section::Points) {
 			std::istringstream iss(line);
 			// Get x, y, r, g, b
-			for (int i = 0; i < 5; ++i) {
+			for (int i = 0; i < dimensions + 3; ++i) {
 				iss >> value;
 				pointData.push_back(value);
 			}
@@ -445,21 +445,21 @@ void Application::InitializePipeline()
 
 	// Describe the position attribute
 	vertexAttribs[0].shaderLocation = 0; // @location(0)
-	vertexAttribs[0].format = VertexFormat::Float32x2;
+	vertexAttribs[0].format = VertexFormat::Float32x3;
 	vertexAttribs[0].offset = 0;
 
 	// Describe the color attribute
 	vertexAttribs[1].shaderLocation = 1; // @location(1)
 	vertexAttribs[1].format = VertexFormat::Float32x3; // different type!
-	vertexAttribs[1].offset = 2 * sizeof(float); // non null offset!
+	vertexAttribs[1].offset = 3 * sizeof(float); // adjusted for 3D
 
 	vertexBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
 	vertexBufferLayout.attributes = vertexAttribs.data();
 
 	// [...] Describe buffer stride and step mode
 	// == Common to attributes from the same buffer ==
-	vertexBufferLayout.arrayStride = 5 * sizeof(float);
-	//                               ^^^^^^^^^^^^^^^^^ The new stride
+	vertexBufferLayout.arrayStride = 6 * sizeof(float);
+	//                               ^^^^^^^^^^^^^^^^^ The new stride for 3D
 	vertexBufferLayout.stepMode = VertexStepMode::Vertex;
 
 
@@ -631,7 +631,7 @@ void Application::InitializeBuffers()
 	std::vector<float> pointData;
 	std::vector<uint16_t> indexData;
 
-	bool success = Parser::loadGeometry(RESOURCE_DIR "/webgpu.txt", pointData, indexData);
+	bool success = Parser::loadGeometry(RESOURCE_DIR "/pyramid.txt", pointData, indexData, 3);
 	if (!success) {
 		std::cerr << "Could not load geometry!" << std::endl;
 		return;
