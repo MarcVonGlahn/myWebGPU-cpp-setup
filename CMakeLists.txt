@@ -20,7 +20,10 @@ add_executable(App
 	Application.cpp
 )
 
-target_sources(App PRIVATE Application.h)
+target_sources(App PRIVATE
+	Application.h
+	Loader.h
+)
 
 target_include_directories(App PRIVATE .)
 

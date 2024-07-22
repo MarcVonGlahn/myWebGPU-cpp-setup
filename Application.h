@@ -101,9 +101,6 @@ public:
 	bool IsRunning();
 
 private:
-	bool loadGeometry(const fs::path& path, std::vector<float>& pointData, std::vector<uint16_t>& indexData, int dimensions);
-	bool loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& thisVertexData);
-	ShaderModule loadShaderModule(const fs::path& path, Device device);
 
 	TextureView GetNextSurfaceTextureView();
 	void SetupDepthTextureView();
