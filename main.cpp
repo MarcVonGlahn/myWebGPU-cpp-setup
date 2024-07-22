@@ -157,6 +157,22 @@ static_assert(sizeof(MyUniforms) % 16 == 0);
 
 #pragma endregion
 
+
+#pragma region Vertex Attributes
+
+/**
+ * A structure that describes the data layout in the vertex buffer
+ * We do not instantiate it but use it in `sizeof` and `offsetof`
+ */
+struct VertexAttributes {
+	glm::vec3 position;
+	glm::vec3 normal;
+	glm::vec3 color;
+};
+
+#pragma endregion
+
+
 class Application {
 public:
 	// Initialize everything and return true if it went all right
@@ -369,26 +385,20 @@ void Application::MainLoop() {
 	renderPassDesc.colorAttachments = &renderPassColorAttachment;
 	// We now add a depth/stencil attachment:
 	RenderPassDepthStencilAttachment depthStencilAttachment;
-	// The view of the depth texture
 	depthStencilAttachment.view = depthTextureView;
-
-	// The initial value of the depth buffer, meaning "far"
 	depthStencilAttachment.depthClearValue = 1.0f;
-	// Operation settings comparable to the color attachment
 	depthStencilAttachment.depthLoadOp = LoadOp::Clear;
 	depthStencilAttachment.depthStoreOp = StoreOp::Store;
-	// we could turn off writing to the depth buffer globally here
 	depthStencilAttachment.depthReadOnly = false;
-
-	// Stencil setup, mandatory but unused
 	depthStencilAttachment.stencilClearValue = 0;
+#ifdef WEBGPU_BACKEND_WGPU
+	depthStencilAttachment.stencilLoadOp = LoadOp::Clear;
+	depthStencilAttachment.stencilStoreOp = StoreOp::Store;
+#else
 	depthStencilAttachment.stencilLoadOp = LoadOp::Undefined;
 	depthStencilAttachment.stencilStoreOp = StoreOp::Undefined;
+#endif
 	depthStencilAttachment.stencilReadOnly = true;
-	
-	// This part could act up, because I use Dawn
-	/*constexpr auto NaNf = std::numeric_limits<float>::quiet_NaN();
-	depthStencilAttachment.clearDepth = NaNf;*/
 
 	renderPassDesc.depthStencilAttachment = &depthStencilAttachment;
 	renderPassDesc.timestampWrites = nullptr;
@@ -509,25 +519,31 @@ void Application::InitializePipeline()
 	VertexBufferLayout vertexBufferLayout;
 	// [...] Describe the vertex buffer layout
 	// We now have 2 attributes
-	std::vector<VertexAttribute> vertexAttribs(2);
+	std::vector<VertexAttribute> vertexAttribs(3);
 
 	// Describe the position attribute
 	vertexAttribs[0].shaderLocation = 0; // @location(0)
 	vertexAttribs[0].format = VertexFormat::Float32x3;
-	vertexAttribs[0].offset = 0;
+	vertexAttribs[0].offset = offsetof(VertexAttributes, position);
+
+	// Normal attribute
+	vertexAttribs[1].shaderLocation = 1;
+	vertexAttribs[1].format = VertexFormat::Float32x3;
+	vertexAttribs[1].offset = offsetof(VertexAttributes, normal);
 
 	// Describe the color attribute
-	vertexAttribs[1].shaderLocation = 1; // @location(1)
-	vertexAttribs[1].format = VertexFormat::Float32x3; // different type!
-	vertexAttribs[1].offset = 3 * sizeof(float); // adjusted for 3D
+	vertexAttribs[2].shaderLocation = 2; // @location(2)
+	vertexAttribs[2].format = VertexFormat::Float32x3; // different type!
+	vertexAttribs[2].offset = offsetof(VertexAttributes, color);; // adjusted for 3D
 
 	vertexBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
 	vertexBufferLayout.attributes = vertexAttribs.data();
 
 	// [...] Describe buffer stride and step mode
-	// == Common to attributes from the same buffer ==
-	vertexBufferLayout.arrayStride = 6 * sizeof(float);
-	//                               ^^^^^^^^^^^^^^^^^ The new stride for 3D
+
+	vertexBufferLayout.arrayStride = sizeof(VertexAttributes);
+	//                               ^^^^^^^^^^^^^^^^^^^^^^^^ This was 6 * sizeof(float)
+
 	vertexBufferLayout.stepMode = VertexStepMode::Vertex;
 
 
@@ -712,7 +728,7 @@ void Application::InitializeBuffers()
 	std::vector<float> pointData;
 	std::vector<uint16_t> indexData;
 
-	bool success = Parser::loadGeometry(RESOURCE_DIR "/pyramid.txt", pointData, indexData, 3);
+	bool success = Parser::loadGeometry(RESOURCE_DIR "/pyramid.txt", pointData, indexData, 6);
 	if (!success) {
 		std::cerr << "Could not load geometry!" << std::endl;
 		return;
@@ -819,6 +835,13 @@ void Application::InitializeUniforms()
 
 void Application::UpdateUniforms()
 {
+	// Update view matrix
+	float angle1 = uniforms.time;
+	R1 = glm::rotate(glm::mat4x4(1.0), angle1, glm::vec3(0.0, 0.0, 1.0));
+	uniforms.modelMatrix = R1 * T1 * S;
+	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, modelMatrix), &uniforms.modelMatrix, sizeof(MyUniforms::modelMatrix));
+
+
 	uniforms.time = static_cast<float>(glfwGetTime());
 	// uniforms.color = { 5.0f * cos(uniforms.time), sin(uniforms.time), -sin(uniforms.time), 1.0f};
 
@@ -924,13 +947,13 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 
 
 	RequiredLimits requiredLimits = Default;
-	requiredLimits.limits.maxVertexAttributes = 2;
+	requiredLimits.limits.maxVertexAttributes = 3;
 	requiredLimits.limits.maxVertexBuffers = 1;
-	requiredLimits.limits.maxBufferSize = 15 * 5 * sizeof(float);
-	requiredLimits.limits.maxVertexBufferArrayStride = 5 * sizeof(float);
+	requiredLimits.limits.maxBufferSize = 16 * sizeof(VertexAttributes);
+	requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
 	requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
 	requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
-	requiredLimits.limits.maxInterStageShaderComponents = 3;
+	requiredLimits.limits.maxInterStageShaderComponents = 6;
 	// We use at most 1 bind group for now
 	requiredLimits.limits.maxBindGroups = 1;
 	// We use at most 1 uniform buffer per stage
