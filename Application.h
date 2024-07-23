@@ -135,6 +135,7 @@ private:
 
 	Texture m_texture;
 	TextureView m_textureView;
+	TextureDescriptor m_textureDesc;
 
 	Sampler m_sampler;
 

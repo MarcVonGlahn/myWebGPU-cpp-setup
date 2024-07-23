@@ -37,7 +37,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 	// Forward the normal
     out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
 	out.color = in.color;
-    out.uv = in.uv; // Forward the UV coordinates
+    out.uv = in.uv * 6.0;
 	return out;
 }
 

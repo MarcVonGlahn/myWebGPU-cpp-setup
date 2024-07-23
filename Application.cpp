@@ -256,40 +256,39 @@ void Application::SetupDepthTextureView()
 
 void Application::DoTextureCreation()
 {
-	TextureDescriptor textureDesc;
 	// [...] setup descriptor
-	textureDesc.dimension = TextureDimension::_2D;
-	textureDesc.size = { 256, 256, 1 };
+	m_textureDesc.dimension = TextureDimension::_2D;
+	m_textureDesc.size = { 256, 256, 1 };
 	//                             ^ ignored because it is a 2D texture
 
-	textureDesc.mipLevelCount = 1;
-	textureDesc.sampleCount = 1;
+	m_textureDesc.mipLevelCount = 8;
+	m_textureDesc.sampleCount = 1;
 
-	textureDesc.format = TextureFormat::RGBA8Unorm;
+	m_textureDesc.format = TextureFormat::RGBA8Unorm;
 
-	textureDesc.usage = TextureUsage::TextureBinding | TextureUsage::CopyDst;
+	m_textureDesc.usage = TextureUsage::TextureBinding | TextureUsage::CopyDst;
 
-	textureDesc.viewFormatCount = 0;
-	textureDesc.viewFormats = nullptr;
+	m_textureDesc.viewFormatCount = 0;
+	m_textureDesc.viewFormats = nullptr;
 
-	m_texture = device.createTexture(textureDesc);
+	m_texture = device.createTexture(m_textureDesc);
 
 	TextureViewDescriptor textureViewDesc;
 	textureViewDesc.aspect = TextureAspect::All;
 	textureViewDesc.baseArrayLayer = 0;
 	textureViewDesc.arrayLayerCount = 1;
 	textureViewDesc.baseMipLevel = 0;
-	textureViewDesc.mipLevelCount = 1;
+	textureViewDesc.mipLevelCount = m_textureDesc.mipLevelCount;
 	textureViewDesc.dimension = TextureViewDimension::_2D;
-	textureViewDesc.format = textureDesc.format;
+	textureViewDesc.format = m_textureDesc.format;
 	m_textureView = m_texture.createView(textureViewDesc);
 
 
 	// Create image data
-	std::vector<uint8_t> pixels(4 * textureDesc.size.width * textureDesc.size.height);
-	for (uint32_t i = 0; i < textureDesc.size.width; ++i) {
-		for (uint32_t j = 0; j < textureDesc.size.height; ++j) {
-			uint8_t* p = &pixels[4 * (j * textureDesc.size.width + i)];
+	std::vector<uint8_t> pixels(4 * m_textureDesc.size.width * m_textureDesc.size.height);
+	for (uint32_t i = 0; i < m_textureDesc.size.width; ++i) {
+		for (uint32_t j = 0; j < m_textureDesc.size.height; ++j) {
+			uint8_t* p = &pixels[4 * (j * m_textureDesc.size.width + i)];
 			p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0; // r
 			p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0; // g
 			p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0; // b
@@ -308,26 +307,83 @@ void Application::DoTextureCreation()
 	// Arguments telling how the C++ side pixel memory is laid out
 	TextureDataLayout source;
 	source.offset = 0;
-	source.bytesPerRow = 4 * textureDesc.size.width;
-	source.rowsPerImage = textureDesc.size.height;
+	source.bytesPerRow = 4 * m_textureDesc.size.width;
+	source.rowsPerImage = m_textureDesc.size.height;
 
-	queue.writeTexture(destination, pixels.data(), pixels.size(), source, textureDesc.size);
+	queue.writeTexture(destination, pixels.data(), pixels.size(), source, m_textureDesc.size);
 }
 
 void Application::DoSamplerCreation()
 {
 	SamplerDescriptor samplerDesc;
-	samplerDesc.addressModeU = AddressMode::ClampToEdge;
-	samplerDesc.addressModeV = AddressMode::ClampToEdge;
+	samplerDesc.addressModeU = AddressMode::Repeat;
+	samplerDesc.addressModeV = AddressMode::Repeat;
 	samplerDesc.addressModeW = AddressMode::ClampToEdge;
+	// samplerDesc.magFilter = FilterMode::Nearest;
 	samplerDesc.magFilter = FilterMode::Linear;
+	// Also setup the sampler to use these mip levels
 	samplerDesc.minFilter = FilterMode::Linear;
 	samplerDesc.mipmapFilter = MipmapFilterMode::Linear;
 	samplerDesc.lodMinClamp = 0.0f;
-	samplerDesc.lodMaxClamp = 1.0f;
+	samplerDesc.lodMaxClamp = 8.0f;
 	samplerDesc.compare = CompareFunction::Undefined;
 	samplerDesc.maxAnisotropy = 1;
 	m_sampler = device.createSampler(samplerDesc);
+
+
+
+	// Create and upload texture data, one mip level at a time
+	ImageCopyTexture destination;
+	destination.texture = m_texture;
+	destination.origin = { 0, 0, 0 };
+	destination.aspect = TextureAspect::All;
+
+	TextureDataLayout source;
+	source.offset = 0;
+
+	Extent3D mipLevelSize = m_textureDesc.size;
+	std::vector<uint8_t> previousLevelPixels;
+	for (uint32_t level = 0; level < m_textureDesc.mipLevelCount; ++level) {
+		// Create image data
+		std::vector<uint8_t> pixels(4 * mipLevelSize.width * mipLevelSize.height);
+		for (uint32_t i = 0; i < mipLevelSize.width; ++i) {
+			for (uint32_t j = 0; j < mipLevelSize.height; ++j) {
+				uint8_t* p = &pixels[4 * (j * mipLevelSize.width + i)];
+				if (level == 0) {
+					p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0; // r
+					p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0; // g
+					p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0; // b
+				}
+				else {
+					// Get the corresponding 4 pixels from the previous level
+					uint8_t* p00 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 0))];
+					uint8_t* p01 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 1))];
+					uint8_t* p10 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 0))];
+					uint8_t* p11 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 1))];
+					// Average
+					p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
+					p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
+					p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
+				}
+				p[3] = 255; // a
+			}
+		}
+
+		// Change this to the current level
+		destination.mipLevel = level;
+
+		// Compute from the mip level size
+		source.bytesPerRow = 4 * mipLevelSize.width;
+		source.rowsPerImage = mipLevelSize.height;
+
+		queue.writeTexture(destination, pixels.data(), pixels.size(), source, mipLevelSize);
+
+		// The size of the next mip level:
+		// (see https://www.w3.org/TR/webgpu/#logical-miplevel-specific-texture-extent)
+		mipLevelSize.width /= 2;
+		mipLevelSize.height /= 2;
+		previousLevelPixels = std::move(pixels);
+	}
 }
 
 
@@ -574,7 +630,7 @@ void Application::InitializeBuffers()
 	std::vector<uint16_t> indexData;
 
 	// Load mesh data from OBJ file
-	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/cube.obj", vertexData);
+	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/plane.obj", vertexData);
 	if (!success) {
 		std::cerr << "Could not load geometry!" << std::endl;
 		return;
@@ -623,19 +679,10 @@ void Application::UpdateUniforms()
 	// Upload only the time, whichever its order in the struct
 	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, time), &uniforms.time, sizeof(MyUniforms::time));
 
-	//// Update view matrix
-	//float angle1 = uniforms.time; // arbitrary time
-	//float c1 = cos(angle1);
-	//float s1 = sin(angle1);
-	//R1 = transpose(glm::mat4x4(
-	//	c1, s1, 0.0, 0.0,
-	//	-s1, c1, 0.0, 0.0,
-	//	0.0, 0.0, 1.0, 0.0,
-	//	0.0, 0.0, 0.0, 1.0
-	//));
-
-	//uniforms.modelMatrix = R1 * T1 * S;
-	//queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, modelMatrix), &uniforms.modelMatrix, sizeof(MyUniforms::modelMatrix));
+	// In the main loop
+	float viewZ = glm::mix(0.0f, 0.25f, cos(2 * PI * uniforms.time / 4) * 0.5 + 0.5);
+	uniforms.viewMatrix = glm::lookAt(glm::vec3(-0.5f, -1.5f, viewZ + 0.25f), glm::vec3(0.0f), glm::vec3(0, 0, 1));
+	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, viewMatrix), &uniforms.viewMatrix, sizeof(MyUniforms::viewMatrix));
 }
 
 

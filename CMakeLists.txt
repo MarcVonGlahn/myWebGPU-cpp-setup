@@ -17,12 +17,12 @@ add_subdirectory(glfw3webgpu)
 
 add_executable(App
 	main.cpp
-	Application.cpp
 )
 
 target_sources(App PRIVATE
 	Application.h
 	Loader.h
+	Application.cpp
 )
 
 target_include_directories(App PRIVATE .)
