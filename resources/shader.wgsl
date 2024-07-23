@@ -37,15 +37,14 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 	// Forward the normal
     out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
 	out.color = in.color;
-    out.uv = in.uv * 6.0;
+    out.uv = in.uv;
 	return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-	// It is important that the conversion to integers (vec2i) is done in the fragment shader rather than in the vertex shader, because integer vertex output do not get interpolated by the rasterizer.
-    let texelCoords = vec2i(in.uv * vec2f(textureDimensions(gradientTexture)));
-    let color = textureSample(gradientTexture, textureSampler, in.uv).rgb;
+	// Get data from the texture using our new sampler
+	let color = textureSample(gradientTexture, textureSampler, in.uv).rgb;
 
 	return vec4f(color, uMyUniforms.color.a);
 }

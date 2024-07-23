@@ -77,8 +77,6 @@ bool Application::Initialize() {
 	// Initialize Buffers
 	InitializeBuffers();
 
-
-
 	// Buffer experiments
 	//PlayWithBuffers();
 	
@@ -162,7 +160,7 @@ void Application::MainLoop() {
 	renderPass.setPipeline(pipeline);
 
 	// Set both vertex and index buffers
-	renderPass.setVertexBuffer(0, vertexBuffer, 0, vertexData.size() * sizeof(VertexAttributes));
+	renderPass.setVertexBuffer(0, vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
 	// The second argument must correspond to the choice of uint16_t or uint32_t
 
 	// Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
@@ -256,10 +254,16 @@ void Application::SetupDepthTextureView()
 
 void Application::DoTextureCreation()
 {
+	m_textureView = nullptr;
+	m_texture = Loader::loadTexture(RESOURCE_DIR "/texture_flatspot.png", device, &m_textureView);
+	if (!m_texture) {
+		std::cerr << "Could not load texture!" << std::endl;
+	}
+
 	// [...] setup descriptor
-	m_textureDesc.dimension = TextureDimension::_2D;
+	/*m_textureDesc.dimension = TextureDimension::_2D;
 	m_textureDesc.size = { 256, 256, 1 };
-	//                             ^ ignored because it is a 2D texture
+	                             ^ ignored because it is a 2D texture
 
 	m_textureDesc.mipLevelCount = 8;
 	m_textureDesc.sampleCount = 1;
@@ -269,48 +273,48 @@ void Application::DoTextureCreation()
 	m_textureDesc.usage = TextureUsage::TextureBinding | TextureUsage::CopyDst;
 
 	m_textureDesc.viewFormatCount = 0;
-	m_textureDesc.viewFormats = nullptr;
+	m_textureDesc.viewFormats = nullptr;*/
 
-	m_texture = device.createTexture(m_textureDesc);
+	//m_texture = device.createTexture(m_textureDesc);
 
-	TextureViewDescriptor textureViewDesc;
-	textureViewDesc.aspect = TextureAspect::All;
-	textureViewDesc.baseArrayLayer = 0;
-	textureViewDesc.arrayLayerCount = 1;
-	textureViewDesc.baseMipLevel = 0;
-	textureViewDesc.mipLevelCount = m_textureDesc.mipLevelCount;
-	textureViewDesc.dimension = TextureViewDimension::_2D;
-	textureViewDesc.format = m_textureDesc.format;
-	m_textureView = m_texture.createView(textureViewDesc);
+	//TextureViewDescriptor textureViewDesc;
+	//textureViewDesc.aspect = TextureAspect::All;
+	//textureViewDesc.baseArrayLayer = 0;
+	//textureViewDesc.arrayLayerCount = 1;
+	//textureViewDesc.baseMipLevel = 0;
+	//textureViewDesc.mipLevelCount = m_textureDesc.mipLevelCount;
+	//textureViewDesc.dimension = TextureViewDimension::_2D;
+	//textureViewDesc.format = m_textureDesc.format;
+	//m_textureView = m_texture.createView(textureViewDesc);
 
 
-	// Create image data
-	std::vector<uint8_t> pixels(4 * m_textureDesc.size.width * m_textureDesc.size.height);
-	for (uint32_t i = 0; i < m_textureDesc.size.width; ++i) {
-		for (uint32_t j = 0; j < m_textureDesc.size.height; ++j) {
-			uint8_t* p = &pixels[4 * (j * m_textureDesc.size.width + i)];
-			p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0; // r
-			p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0; // g
-			p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0; // b
-			p[3] = 255; // a
-		}
-	}
+	//// Create image data
+	//std::vector<uint8_t> pixels(4 * m_textureDesc.size.width * m_textureDesc.size.height);
+	//for (uint32_t i = 0; i < m_textureDesc.size.width; ++i) {
+	//	for (uint32_t j = 0; j < m_textureDesc.size.height; ++j) {
+	//		uint8_t* p = &pixels[4 * (j * m_textureDesc.size.width + i)];
+	//		p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0; // r
+	//		p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0; // g
+	//		p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0; // b
+	//		p[3] = 255; // a
+	//	}
+	//}
 
-	// Arguments telling which part of the texture we upload to
-	// (together with the last argument of writeTexture)
-	ImageCopyTexture destination;
-	destination.texture = m_texture;
-	destination.mipLevel = 0;
-	destination.origin = { 0, 0, 0 }; // equivalent of the offset argument of Queue::writeBuffer
-	destination.aspect = TextureAspect::All; // only relevant for depth/Stencil textures
+	//// Arguments telling which part of the texture we upload to
+	//// (together with the last argument of writeTexture)
+	//ImageCopyTexture destination;
+	//destination.texture = m_texture;
+	//destination.mipLevel = 0;
+	//destination.origin = { 0, 0, 0 }; // equivalent of the offset argument of Queue::writeBuffer
+	//destination.aspect = TextureAspect::All; // only relevant for depth/Stencil textures
 
-	// Arguments telling how the C++ side pixel memory is laid out
-	TextureDataLayout source;
-	source.offset = 0;
-	source.bytesPerRow = 4 * m_textureDesc.size.width;
-	source.rowsPerImage = m_textureDesc.size.height;
+	//// Arguments telling how the C++ side pixel memory is laid out
+	//TextureDataLayout source;
+	//source.offset = 0;
+	//source.bytesPerRow = 4 * m_textureDesc.size.width;
+	//source.rowsPerImage = m_textureDesc.size.height;
 
-	queue.writeTexture(destination, pixels.data(), pixels.size(), source, m_textureDesc.size);
+	/*queue.writeTexture(destination, pixels.data(), pixels.size(), source, m_textureDesc.size);*/
 }
 
 void Application::DoSamplerCreation()
@@ -332,58 +336,58 @@ void Application::DoSamplerCreation()
 
 
 
-	// Create and upload texture data, one mip level at a time
-	ImageCopyTexture destination;
-	destination.texture = m_texture;
-	destination.origin = { 0, 0, 0 };
-	destination.aspect = TextureAspect::All;
+	//// Create and upload texture data, one mip level at a time
+	//ImageCopyTexture destination;
+	//destination.texture = m_texture;
+	//destination.origin = { 0, 0, 0 };
+	//destination.aspect = TextureAspect::All;
 
-	TextureDataLayout source;
-	source.offset = 0;
+	//TextureDataLayout source;
+	//source.offset = 0;
 
-	Extent3D mipLevelSize = m_textureDesc.size;
-	std::vector<uint8_t> previousLevelPixels;
-	for (uint32_t level = 0; level < m_textureDesc.mipLevelCount; ++level) {
-		// Create image data
-		std::vector<uint8_t> pixels(4 * mipLevelSize.width * mipLevelSize.height);
-		for (uint32_t i = 0; i < mipLevelSize.width; ++i) {
-			for (uint32_t j = 0; j < mipLevelSize.height; ++j) {
-				uint8_t* p = &pixels[4 * (j * mipLevelSize.width + i)];
-				if (level == 0) {
-					p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0; // r
-					p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0; // g
-					p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0; // b
-				}
-				else {
-					// Get the corresponding 4 pixels from the previous level
-					uint8_t* p00 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 0))];
-					uint8_t* p01 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 1))];
-					uint8_t* p10 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 0))];
-					uint8_t* p11 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 1))];
-					// Average
-					p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
-					p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
-					p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
-				}
-				p[3] = 255; // a
-			}
-		}
+	//Extent3D mipLevelSize = m_textureDesc.size;
+	//std::vector<uint8_t> previousLevelPixels;
+	//for (uint32_t level = 0; level < m_textureDesc.mipLevelCount; ++level) {
+	//	// Create image data
+	//	std::vector<uint8_t> pixels(4 * mipLevelSize.width * mipLevelSize.height);
+	//	for (uint32_t i = 0; i < mipLevelSize.width; ++i) {
+	//		for (uint32_t j = 0; j < mipLevelSize.height; ++j) {
+	//			uint8_t* p = &pixels[4 * (j * mipLevelSize.width + i)];
+	//			if (level == 0) {
+	//				p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0; // r
+	//				p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0; // g
+	//				p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0; // b
+	//			}
+	//			else {
+	//				// Get the corresponding 4 pixels from the previous level
+	//				uint8_t* p00 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 0))];
+	//				uint8_t* p01 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 1))];
+	//				uint8_t* p10 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 0))];
+	//				uint8_t* p11 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 1))];
+	//				// Average
+	//				p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
+	//				p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
+	//				p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
+	//			}
+	//			p[3] = 255; // a
+	//		}
+	//	}
 
-		// Change this to the current level
-		destination.mipLevel = level;
+	//	// Change this to the current level
+	//	destination.mipLevel = level;
 
-		// Compute from the mip level size
-		source.bytesPerRow = 4 * mipLevelSize.width;
-		source.rowsPerImage = mipLevelSize.height;
+	//	// Compute from the mip level size
+	//	source.bytesPerRow = 4 * mipLevelSize.width;
+	//	source.rowsPerImage = mipLevelSize.height;
 
-		queue.writeTexture(destination, pixels.data(), pixels.size(), source, mipLevelSize);
+	//	queue.writeTexture(destination, pixels.data(), pixels.size(), source, mipLevelSize);
 
-		// The size of the next mip level:
-		// (see https://www.w3.org/TR/webgpu/#logical-miplevel-specific-texture-extent)
-		mipLevelSize.width /= 2;
-		mipLevelSize.height /= 2;
-		previousLevelPixels = std::move(pixels);
-	}
+	//	// The size of the next mip level:
+	//	// (see https://www.w3.org/TR/webgpu/#logical-miplevel-specific-texture-extent)
+	//	mipLevelSize.width /= 2;
+	//	mipLevelSize.height /= 2;
+	//	previousLevelPixels = std::move(pixels);
+	//}
 }
 
 
@@ -624,13 +628,8 @@ void Application::InitializePipeline()
 
 void Application::InitializeBuffers()
 {
-	// Define point data
-	// The de-duplicated list of point positions
-	std::vector<float> pointData;
-	std::vector<uint16_t> indexData;
-
 	// Load mesh data from OBJ file
-	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/plane.obj", vertexData);
+	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/flatspot_car_2.obj", m_vertexData);
 	if (!success) {
 		std::cerr << "Could not load geometry!" << std::endl;
 		return;
@@ -638,13 +637,13 @@ void Application::InitializeBuffers()
 
 	// Create vertex buffer
 	BufferDescriptor bufferDesc;
-	bufferDesc.size = vertexData.size() * sizeof(VertexAttributes); // changed
+	bufferDesc.size = m_vertexData.size() * sizeof(VertexAttributes); // changed
 	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Vertex;
 	bufferDesc.mappedAtCreation = false;
 	vertexBuffer = device.createBuffer(bufferDesc);
-	queue.writeBuffer(vertexBuffer, 0, vertexData.data(), bufferDesc.size); // changed
+	queue.writeBuffer(vertexBuffer, 0, m_vertexData.data(), bufferDesc.size); // changed
 
-	indexCount = static_cast<uint16_t>(vertexData.size()); // changed
+	indexCount = static_cast<int>(m_vertexData.size()); // changed
 
 	// Create index buffer
 	// (we reuse the bufferDesc initialized for the pointBuffer)
@@ -661,8 +660,9 @@ void Application::InitializeUniforms()
 	// Upload the initial value of the uniforms
 	uniforms = MyUniforms();
 
+	// Matrices
 	uniforms.modelMatrix = glm::mat4x4(1.0);
-	uniforms.viewMatrix = glm::lookAt(glm::vec3(-1.0f, -4.5f, 2.0f), glm::vec3(0.0f), glm::vec3(0, 0, 1)); // the last argument indicates our Up direction convention
+	uniforms.viewMatrix = glm::lookAt(glm::vec3(-1.0f, -2.0f, 1.0f), glm::vec3(0.0f), glm::vec3(0, 0, 1));
 	uniforms.projectionMatrix = glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
 
 	uniforms.color = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -680,9 +680,9 @@ void Application::UpdateUniforms()
 	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, time), &uniforms.time, sizeof(MyUniforms::time));
 
 	// In the main loop
-	float viewZ = glm::mix(0.0f, 0.25f, cos(2 * PI * uniforms.time / 4) * 0.5 + 0.5);
+	/*float viewZ = glm::mix(0.0f, 0.25f, cos(2 * PI * uniforms.time / 4) * 0.5 + 0.5);
 	uniforms.viewMatrix = glm::lookAt(glm::vec3(-0.5f, -1.5f, viewZ + 0.25f), glm::vec3(0.0f), glm::vec3(0, 0, 1));
-	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, viewMatrix), &uniforms.viewMatrix, sizeof(MyUniforms::viewMatrix));
+	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, viewMatrix), &uniforms.viewMatrix, sizeof(MyUniforms::viewMatrix));*/
 }
 
 
@@ -776,32 +776,25 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	SupportedLimits supportedLimits;
 	adapter.getLimits(&supportedLimits);
 
-	//CHECK --> std::cout << "adapter.maxVertexAttributes: " << supportedLimits.limits.maxVertexAttributes << std::endl;*/
+	/*CHECK--> std::cout << "adapter.maxBufferSize: " << supportedLimits.limits.maxBufferSize << std::endl; */
 
 
 	RequiredLimits requiredLimits = Default;
 	requiredLimits.limits.maxVertexAttributes = 4;
 	requiredLimits.limits.maxVertexBuffers = 1;
-	requiredLimits.limits.maxBufferSize = 10000 * sizeof(VertexAttributes);
+	requiredLimits.limits.maxBufferSize = 150000 * sizeof(VertexAttributes);
 	requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
 	requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
 	requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
 	requiredLimits.limits.maxInterStageShaderComponents = 8;
-	// We use at most 1 bind group for now
 	requiredLimits.limits.maxBindGroups = 1;
-	// We use at most 1 uniform buffer per stage
 	requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
-	// Uniform structs have a size of maximum 16 float
 	requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4 * sizeof(float);
-
-	// For the depth buffer, we enable textures (up to the size of the window):
-	requiredLimits.limits.maxTextureDimension1D = 480;
-	requiredLimits.limits.maxTextureDimension2D = 640;
+	// Allow textures up to 2K
+	requiredLimits.limits.maxTextureDimension1D = 2048;
+	requiredLimits.limits.maxTextureDimension2D = 2048;
 	requiredLimits.limits.maxTextureArrayLayers = 1;
-
-	// Add the possibility to sample a texture in a shader
 	requiredLimits.limits.maxSampledTexturesPerShaderStage = 1;
-
 	requiredLimits.limits.maxSamplersPerShaderStage = 1;
 
 	return requiredLimits;

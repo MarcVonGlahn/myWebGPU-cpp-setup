@@ -15,10 +15,6 @@
 #include <glm/glm.hpp> // all types inspired from GLSL
 #include <glm/ext.hpp> // --> Can't use this, give me error in type_quat.hpp
 
-
-#define TINYOBJLOADER_IMPLEMENTATION // add this to exactly 1 of your C++ files
-#include "tiny_obj_loader.h"
-
 #ifdef __EMSCRIPTEN__
 #  include <emscripten.h>
 #endif // __EMSCRIPTEN__
@@ -30,13 +26,6 @@
 #include <array>
 
 #include <cmath>
-
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <string>
-
-namespace fs = std::filesystem;
 
 
 // Avoid the "wgpu::" prefix in front of all WebGPU symbols
@@ -139,7 +128,7 @@ private:
 
 	Sampler m_sampler;
 
-	std::vector<VertexAttributes> vertexData;
+	std::vector<VertexAttributes> m_vertexData;
 
 	Buffer pointBuffer;
 	Buffer indexBuffer;
