@@ -331,7 +331,7 @@ void Application::InitializePipeline()
 	VertexBufferLayout vertexBufferLayout;
 	// [...] Describe the vertex buffer layout
 	// We now have 2 attributes
-	std::vector<VertexAttribute> vertexAttribs(3);
+	std::vector<VertexAttribute> vertexAttribs(4);
 
 	// Describe the position attribute
 	vertexAttribs[0].shaderLocation = 0; // @location(0)
@@ -347,6 +347,11 @@ void Application::InitializePipeline()
 	vertexAttribs[2].shaderLocation = 2; // @location(2)
 	vertexAttribs[2].format = VertexFormat::Float32x3; // different type!
 	vertexAttribs[2].offset = offsetof(VertexAttributes, color);; // adjusted for 3D
+
+	// UV attribute
+	vertexAttribs[3].shaderLocation = 3;
+	vertexAttribs[3].format = VertexFormat::Float32x2;
+	vertexAttribs[3].offset = offsetof(VertexAttributes, uv);
 
 	vertexBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
 	vertexBufferLayout.attributes = vertexAttribs.data();
@@ -541,7 +546,7 @@ void Application::InitializeBuffers()
 	std::vector<uint16_t> indexData;
 
 	// Load mesh data from OBJ file
-	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/plane.obj", vertexData);
+	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/cube.obj", vertexData);
 	if (!success) {
 		std::cerr << "Could not load geometry!" << std::endl;
 		return;
@@ -573,7 +578,7 @@ void Application::InitializeUniforms()
 	uniforms = MyUniforms();
 
 	uniforms.modelMatrix = glm::mat4x4(1.0);
-	uniforms.viewMatrix = glm::lookAt(glm::vec3(-0.5f, -2.5f, 2.0f), glm::vec3(0.0f), glm::vec3(0, 0, 1)); // the last argument indicates our Up direction convention
+	uniforms.viewMatrix = glm::lookAt(glm::vec3(-1.0f, -4.5f, 2.0f), glm::vec3(0.0f), glm::vec3(0, 0, 1)); // the last argument indicates our Up direction convention
 	uniforms.projectionMatrix = glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
 
 	uniforms.color = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -700,7 +705,7 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 
 
 	RequiredLimits requiredLimits = Default;
-	requiredLimits.limits.maxVertexAttributes = 3;
+	requiredLimits.limits.maxVertexAttributes = 4;
 	requiredLimits.limits.maxVertexBuffers = 1;
 	requiredLimits.limits.maxBufferSize = 10000 * sizeof(VertexAttributes);
 	requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);

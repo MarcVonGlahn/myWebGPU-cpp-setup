@@ -1,7 +1,8 @@
 struct VertexInput {
 	@location(0) position: vec3f,
-    @location(1) normal: vec3f, // new attribute
+    @location(1) normal: vec3f,
     @location(2) color: vec3f,
+    @location(3) uv: vec2f, // new attribute
 };
 
 struct VertexOutput {
@@ -35,17 +36,13 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 	// Forward the normal
     out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
 	out.color = in.color;
-
-	// In plane.obj, the vertex xy coords range from -1 to 1
-    // and we remap this to the resolution-agnostic (0, 1) range
-    out.uv = in.position.xy * 0.5 + 0.5;
-
+    out.uv = in.uv; // Forward the UV coordinates
 	return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-	// We remap UV coords to actual texel coordinates
+	// It is important that the conversion to integers (vec2i) is done in the fragment shader rather than in the vertex shader, because integer vertex output do not get interpolated by the rasterizer.
     let texelCoords = vec2i(in.uv * vec2f(textureDimensions(gradientTexture)));
     let color = textureLoad(gradientTexture, texelCoords, 0).rgb;
 

@@ -118,6 +118,11 @@ bool Loader::loadGeometryFromObj(const fs::path& path, std::vector<VertexAttribu
 				attrib.colors[3 * idx.vertex_index + 1],
 				attrib.colors[3 * idx.vertex_index + 2]
 			};
+
+			thisVertexData[offset + i].uv = {
+				attrib.texcoords[2 * idx.texcoord_index + 0],
+				1 - attrib.texcoords[2 * idx.texcoord_index + 1]
+			};
 		}
 	}
 
