@@ -1,7 +1,6 @@
 #include "Application.h"
 #include "Loader.h"
 
-
 bool Application::Initialize() {
 	// Open window
 	glfwInit();
@@ -291,9 +290,9 @@ void Application::DoTextureCreation()
 	for (uint32_t i = 0; i < textureDesc.size.width; ++i) {
 		for (uint32_t j = 0; j < textureDesc.size.height; ++j) {
 			uint8_t* p = &pixels[4 * (j * textureDesc.size.width + i)];
-			p[0] = (uint8_t)i; // r
-			p[1] = (uint8_t)j; // g
-			p[2] = 128; // b
+			p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0; // r
+			p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0; // g
+			p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0; // b
 			p[3] = 255; // a
 		}
 	}
@@ -313,6 +312,22 @@ void Application::DoTextureCreation()
 	source.rowsPerImage = textureDesc.size.height;
 
 	queue.writeTexture(destination, pixels.data(), pixels.size(), source, textureDesc.size);
+}
+
+void Application::DoSamplerCreation()
+{
+	SamplerDescriptor samplerDesc;
+	samplerDesc.addressModeU = AddressMode::ClampToEdge;
+	samplerDesc.addressModeV = AddressMode::ClampToEdge;
+	samplerDesc.addressModeW = AddressMode::ClampToEdge;
+	samplerDesc.magFilter = FilterMode::Linear;
+	samplerDesc.minFilter = FilterMode::Linear;
+	samplerDesc.mipmapFilter = MipmapFilterMode::Linear;
+	samplerDesc.lodMinClamp = 0.0f;
+	samplerDesc.lodMaxClamp = 1.0f;
+	samplerDesc.compare = CompareFunction::Undefined;
+	samplerDesc.maxAnisotropy = 1;
+	m_sampler = device.createSampler(samplerDesc);
 }
 
 
@@ -476,7 +491,8 @@ void Application::InitializePipeline()
 	// [...] Define bindingLayout
 	// Create binding layouts
 	// Since we now have 2 bindings, we use a vector to store them
-	std::vector<BindGroupLayoutEntry> bindingLayoutEntries(2, Default);
+	std::vector<BindGroupLayoutEntry> bindingLayoutEntries(3, Default);
+	//                                                     ^ This was a 2
 
 	// The uniform buffer binding that we already had
 	BindGroupLayoutEntry& bindingLayout = bindingLayoutEntries[0];
@@ -492,6 +508,12 @@ void Application::InitializePipeline()
 	textureBindingLayout.visibility = ShaderStage::Fragment;
 	textureBindingLayout.texture.sampleType = TextureSampleType::Float;
 	textureBindingLayout.texture.viewDimension = TextureViewDimension::_2D;
+
+	// The texture sampler binding
+	BindGroupLayoutEntry& samplerBindingLayout = bindingLayoutEntries[2];
+	samplerBindingLayout.binding = 2;
+	samplerBindingLayout.visibility = ShaderStage::Fragment;
+	samplerBindingLayout.sampler.type = SamplerBindingType::Filtering;
 
 
 	// Create a bind group layout
@@ -515,8 +537,11 @@ void Application::InitializePipeline()
 
 	DoTextureCreation();
 
+	DoSamplerCreation();
+
 	// Create a binding
-	std::vector<BindGroupEntry> bindings(2);
+	std::vector<BindGroupEntry> bindings(3);
+	//                                   ^ This was a 2
 
 	bindings[0].binding = 0;
 	bindings[0].buffer = uniformBuffer;
@@ -525,6 +550,9 @@ void Application::InitializePipeline()
 
 	bindings[1].binding = 1;
 	bindings[1].textureView = m_textureView;
+
+	bindings[2].binding = 2;
+	bindings[2].sampler = m_sampler;
 
 	BindGroupDescriptor bindGroupDesc;
 	bindGroupDesc.layout = bindGroupLayout;
@@ -726,6 +754,8 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 
 	// Add the possibility to sample a texture in a shader
 	requiredLimits.limits.maxSampledTexturesPerShaderStage = 1;
+
+	requiredLimits.limits.maxSamplersPerShaderStage = 1;
 
 	return requiredLimits;
 }

@@ -1,13 +1,13 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
+#include <GLFW/glfw3.h>
+#include <glfw3webgpu.h>
+
 
 // Include the C++ wrapper instead of the raw header(s)
 #define WEBGPU_CPP_IMPLEMENTATION
 #include <webgpu/webgpu.hpp>
-
-#include <GLFW/glfw3.h>
-#include <glfw3webgpu.h>
 
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -106,6 +106,7 @@ private:
 	TextureView GetNextSurfaceTextureView();
 	void SetupDepthTextureView();
 	void DoTextureCreation();
+	void DoSamplerCreation();
 
 	void InitializePipeline();
 	void InitializeBuffers();
@@ -134,6 +135,8 @@ private:
 
 	Texture m_texture;
 	TextureView m_textureView;
+
+	Sampler m_sampler;
 
 	std::vector<VertexAttributes> vertexData;
 
