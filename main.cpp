@@ -1,5 +1,5 @@
-// In the Project Properties, under Linker --> General --> Force File Output is set to /FORCE.
-// This is NOT GOOD practise, but I am currently too lazy to fix 470 Linker errors that I got from importing libraries for this tutorial.
+// In the Project Properties, under C++ --> General --> Warning Level is set to /W3.
+// I also fixed all 470 Linker errors by adding the inline keyword.
 // At least, I understand now what the problem, and what causes a Linker error.
 
 

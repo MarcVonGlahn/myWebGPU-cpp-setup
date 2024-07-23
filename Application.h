@@ -13,7 +13,7 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_LEFT_HANDED
 #include <glm/glm.hpp> // all types inspired from GLSL
-// #include <glm/ext.hpp> --> Can't use this, give me error in type_quat.hpp
+#include <glm/ext.hpp> // --> Can't use this, give me error in type_quat.hpp
 
 
 #define TINYOBJLOADER_IMPLEMENTATION // add this to exactly 1 of your C++ files
@@ -104,6 +104,7 @@ private:
 
 	TextureView GetNextSurfaceTextureView();
 	void SetupDepthTextureView();
+	void DoTextureCreation();
 
 	void InitializePipeline();
 	void InitializeBuffers();
@@ -129,6 +130,9 @@ private:
 
 	Texture depthTexture;
 	TextureView depthTextureView;
+
+	Texture m_texture;
+	TextureView m_textureView;
 
 	std::vector<VertexAttributes> vertexData;
 

@@ -1,8 +1,6 @@
 #include "Application.h"
 #include "Loader.h"
 
-using namespace wgpu;
-
 
 bool Application::Initialize() {
 	// Open window
@@ -80,6 +78,8 @@ bool Application::Initialize() {
 	// Initialize Buffers
 	InitializeBuffers();
 
+
+
 	// Buffer experiments
 	//PlayWithBuffers();
 	
@@ -90,6 +90,9 @@ void Application::Terminate() {
 	depthTextureView.release();
 	depthTexture.destroy();
 	depthTexture.release();
+
+	m_texture.destroy();
+	m_texture.release();
 
 	pointBuffer.release();
 	indexBuffer.release();
@@ -110,8 +113,6 @@ void Application::MainLoop() {
 	// Get the next target texture view
 	TextureView targetView = GetNextSurfaceTextureView();
 	if (!targetView) return;
-
-	SetupDepthTextureView();
 
 	// Create a command encoder for the draw call
 	CommandEncoderDescriptor encoderDesc = {};
@@ -252,6 +253,66 @@ void Application::SetupDepthTextureView()
 	depthTextureViewDesc.dimension = TextureViewDimension::_2D;
 	depthTextureViewDesc.format = depthTextureFormat;
 	depthTextureView = depthTexture.createView(depthTextureViewDesc);
+}
+
+void Application::DoTextureCreation()
+{
+	TextureDescriptor textureDesc;
+	// [...] setup descriptor
+	textureDesc.dimension = TextureDimension::_2D;
+	textureDesc.size = { 256, 256, 1 };
+	//                             ^ ignored because it is a 2D texture
+
+	textureDesc.mipLevelCount = 1;
+	textureDesc.sampleCount = 1;
+
+	textureDesc.format = TextureFormat::RGBA8Unorm;
+
+	textureDesc.usage = TextureUsage::TextureBinding | TextureUsage::CopyDst;
+
+	textureDesc.viewFormatCount = 0;
+	textureDesc.viewFormats = nullptr;
+
+	m_texture = device.createTexture(textureDesc);
+
+	TextureViewDescriptor textureViewDesc;
+	textureViewDesc.aspect = TextureAspect::All;
+	textureViewDesc.baseArrayLayer = 0;
+	textureViewDesc.arrayLayerCount = 1;
+	textureViewDesc.baseMipLevel = 0;
+	textureViewDesc.mipLevelCount = 1;
+	textureViewDesc.dimension = TextureViewDimension::_2D;
+	textureViewDesc.format = textureDesc.format;
+	m_textureView = m_texture.createView(textureViewDesc);
+
+
+	// Create image data
+	std::vector<uint8_t> pixels(4 * textureDesc.size.width * textureDesc.size.height);
+	for (uint32_t i = 0; i < textureDesc.size.width; ++i) {
+		for (uint32_t j = 0; j < textureDesc.size.height; ++j) {
+			uint8_t* p = &pixels[4 * (j * textureDesc.size.width + i)];
+			p[0] = (uint8_t)i; // r
+			p[1] = (uint8_t)j; // g
+			p[2] = 128; // b
+			p[3] = 255; // a
+		}
+	}
+
+	// Arguments telling which part of the texture we upload to
+	// (together with the last argument of writeTexture)
+	ImageCopyTexture destination;
+	destination.texture = m_texture;
+	destination.mipLevel = 0;
+	destination.origin = { 0, 0, 0 }; // equivalent of the offset argument of Queue::writeBuffer
+	destination.aspect = TextureAspect::All; // only relevant for depth/Stencil textures
+
+	// Arguments telling how the C++ side pixel memory is laid out
+	TextureDataLayout source;
+	source.offset = 0;
+	source.bytesPerRow = 4 * textureDesc.size.width;
+	source.rowsPerImage = textureDesc.size.height;
+
+	queue.writeTexture(destination, pixels.data(), pixels.size(), source, textureDesc.size);
 }
 
 
@@ -408,23 +469,30 @@ void Application::InitializePipeline()
 
 
 	// [...] Define bindingLayout
-	// Create binding layout (don't forget to = Default)
-	BindGroupLayoutEntry bindingLayout = Default;
+	// Create binding layouts
+	// Since we now have 2 bindings, we use a vector to store them
+	std::vector<BindGroupLayoutEntry> bindingLayoutEntries(2, Default);
 
-	// The binding index as used in the @binding attribute in the shader
+	// The uniform buffer binding that we already had
+	BindGroupLayoutEntry& bindingLayout = bindingLayoutEntries[0];
 	bindingLayout.binding = 0;
-
-	// The stage that needs to access this resource
 	bindingLayout.visibility = ShaderStage::Vertex | ShaderStage::Fragment;
-
 	bindingLayout.buffer.type = BufferBindingType::Uniform;
 	bindingLayout.buffer.minBindingSize = sizeof(MyUniforms);
-	bindingLayout.buffer.hasDynamicOffset = 0;
+
+	// The texture binding
+	BindGroupLayoutEntry& textureBindingLayout = bindingLayoutEntries[1];
+	// Setup texture binding
+	textureBindingLayout.binding = 1;
+	textureBindingLayout.visibility = ShaderStage::Fragment;
+	textureBindingLayout.texture.sampleType = TextureSampleType::Float;
+	textureBindingLayout.texture.viewDimension = TextureViewDimension::_2D;
+
 
 	// Create a bind group layout
-	BindGroupLayoutDescriptor bindGroupLayoutDesc;
-	bindGroupLayoutDesc.entryCount = 1;
-	bindGroupLayoutDesc.entries = &bindingLayout;
+	BindGroupLayoutDescriptor bindGroupLayoutDesc{};
+	bindGroupLayoutDesc.entryCount = (uint32_t)bindingLayoutEntries.size();
+	bindGroupLayoutDesc.entries = bindingLayoutEntries.data();
 	BindGroupLayout bindGroupLayout = device.createBindGroupLayout(bindGroupLayoutDesc);
 
 
@@ -438,35 +506,28 @@ void Application::InitializePipeline()
 	// Assign the PipelineLayout to the RenderPipelineDescriptor's layout field
 	pipelineDesc.layout = layout;
 
+	SetupDepthTextureView();
 
+	DoTextureCreation();
 
 	// Create a binding
-	BindGroupEntry binding;
-	
-	// The index of the binding (the entries in bindGroupDesc can be in any order)
-	binding.binding = 0;
-	// The buffer it is actually bound to
-	binding.buffer = uniformBuffer;
-	// We can specify an offset within the buffer, so that a single buffer can hold
-	// multiple uniform blocks.
-	binding.offset = 0;
-	// And we specify again the size of the buffer.
-	binding.size = sizeof(MyUniforms);
+	std::vector<BindGroupEntry> bindings(2);
 
+	bindings[0].binding = 0;
+	bindings[0].buffer = uniformBuffer;
+	bindings[0].offset = 0;
+	bindings[0].size = sizeof(MyUniforms);
 
+	bindings[1].binding = 1;
+	bindings[1].textureView = m_textureView;
 
-	// A bind group contains one or multiple bindings
 	BindGroupDescriptor bindGroupDesc;
-	bindGroupDesc.label = "Uniform Bind Group 1";
 	bindGroupDesc.layout = bindGroupLayout;
-	// There must be as many bindings as declared in the layout!
-	bindGroupDesc.entryCount = bindGroupLayoutDesc.entryCount;
-	bindGroupDesc.entries = &binding;
+	bindGroupDesc.entryCount = (uint32_t)bindings.size();
+	bindGroupDesc.entries = bindings.data();
 	m_bindGroup = device.createBindGroup(bindGroupDesc);
 
 	pipeline = device.createRenderPipeline(pipelineDesc);
-
-
 
 	// We no longer need to access the shader module
 	shaderModule.release();
@@ -480,7 +541,7 @@ void Application::InitializeBuffers()
 	std::vector<uint16_t> indexData;
 
 	// Load mesh data from OBJ file
-	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/flatspot_car.obj", vertexData);
+	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/plane.obj", vertexData);
 	if (!success) {
 		std::cerr << "Could not load geometry!" << std::endl;
 		return;
@@ -511,63 +572,9 @@ void Application::InitializeUniforms()
 	// Upload the initial value of the uniforms
 	uniforms = MyUniforms();
 
-	// Option A: Manually define matrices
-	// Scale the object
-	S = transpose(glm::mat4x4(1.0f));
-
-	// Translate the object
-	T1 = transpose(glm::mat4x4(
-		1.0, 0.0, 0.0, 0.0,
-		0.0, 1.0, 0.0, 0.0,
-		0.0, 0.0, 1.0, 0.0,
-		0.0, 0.0, 0.0, 1.0
-	));
-
-	// Translate the view
-	glm::vec3 focalPoint(0.0, 0.0, -3.0);
-	glm::mat4x4 T2 = transpose(glm::mat4x4(
-		1.0, 0.0, 0.0, -focalPoint.x,
-		0.0, 1.0, 0.0, -focalPoint.y,
-		0.0, 0.0, 1.0, -focalPoint.z,
-		0.0, 0.0, 0.0, 1.0
-	));
-
-	// Rotate the object
-	float angle1 = 1.0f; // arbitrary time
-	float c1 = cos(angle1);
-	float s1 = sin(angle1);
-	R1 = transpose(glm::mat4x4(
-		c1, s1, 0.0, 0.0,
-		-s1, c1, 0.0, 0.0,
-		0.0, 0.0, 1.0, 0.0,
-		0.0, 0.0, 0.0, 1.0
-	));
-
-	// Rotate the view point
-	float angle2 = 3.0f * PI / 4.0f;
-	float c2 = cos(angle2);
-	float s2 = sin(angle2);
-	glm::mat4x4 R2 = transpose(glm::mat4x4(
-		1.0, 0.0, 0.0, 0.0,
-		0.0, c2, s2, 0.0,
-		0.0, -s2, c2, 0.0,
-		0.0, 0.0, 0.0, 1.0
-	));
-
-	uniforms.modelMatrix = R1 * T1 * S;
-	uniforms.viewMatrix = T2 * R2;
-
-	float ratio = 640.0f / 480.0f;
-	float focalLength = 1.5f;
-	float near = 0.01f;
-	float far = 100.0f;
-	float divider = 1 / (focalLength * (far - near));
-	uniforms.projectionMatrix = transpose(glm::mat4x4(
-		1.0, 0.0, 0.0, 0.0,
-		0.0, ratio, 0.0, 0.0,
-		0.0, 0.0, far * divider, -far * near * divider,
-		0.0, 0.0, 1.0 / focalLength, 0.0
-	));
+	uniforms.modelMatrix = glm::mat4x4(1.0);
+	uniforms.viewMatrix = glm::scale(glm::mat4x4(1.0), glm::vec3(1.0f));
+	uniforms.projectionMatrix = glm::ortho(-1, 1, -1, 1, -1, 1);
 
 	uniforms.color = { 0.0f, 0.0f, 0.0f, 1.0f };
 	uniforms.time = 1.0f;
@@ -583,19 +590,19 @@ void Application::UpdateUniforms()
 	// Upload only the time, whichever its order in the struct
 	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, time), &uniforms.time, sizeof(MyUniforms::time));
 
-	// Update view matrix
-	float angle1 = uniforms.time; // arbitrary time
-	float c1 = cos(angle1);
-	float s1 = sin(angle1);
-	R1 = transpose(glm::mat4x4(
-		c1, s1, 0.0, 0.0,
-		-s1, c1, 0.0, 0.0,
-		0.0, 0.0, 1.0, 0.0,
-		0.0, 0.0, 0.0, 1.0
-	));
+	//// Update view matrix
+	//float angle1 = uniforms.time; // arbitrary time
+	//float c1 = cos(angle1);
+	//float s1 = sin(angle1);
+	//R1 = transpose(glm::mat4x4(
+	//	c1, s1, 0.0, 0.0,
+	//	-s1, c1, 0.0, 0.0,
+	//	0.0, 0.0, 1.0, 0.0,
+	//	0.0, 0.0, 0.0, 1.0
+	//));
 
-	uniforms.modelMatrix = R1 * T1 * S;
-	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, modelMatrix), &uniforms.modelMatrix, sizeof(MyUniforms::modelMatrix));
+	//uniforms.modelMatrix = R1 * T1 * S;
+	//queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, modelMatrix), &uniforms.modelMatrix, sizeof(MyUniforms::modelMatrix));
 }
 
 
@@ -711,6 +718,9 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	requiredLimits.limits.maxTextureDimension1D = 480;
 	requiredLimits.limits.maxTextureDimension2D = 640;
 	requiredLimits.limits.maxTextureArrayLayers = 1;
+
+	// Add the possibility to sample a texture in a shader
+	requiredLimits.limits.maxSampledTexturesPerShaderStage = 1;
 
 	return requiredLimits;
 }
