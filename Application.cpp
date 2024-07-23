@@ -573,8 +573,8 @@ void Application::InitializeUniforms()
 	uniforms = MyUniforms();
 
 	uniforms.modelMatrix = glm::mat4x4(1.0);
-	uniforms.viewMatrix = glm::scale(glm::mat4x4(1.0), glm::vec3(1.0f));
-	uniforms.projectionMatrix = glm::ortho(-1, 1, -1, 1, -1, 1);
+	uniforms.viewMatrix = glm::lookAt(glm::vec3(-0.5f, -2.5f, 2.0f), glm::vec3(0.0f), glm::vec3(0, 0, 1)); // the last argument indicates our Up direction convention
+	uniforms.projectionMatrix = glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
 
 	uniforms.color = { 0.0f, 0.0f, 0.0f, 1.0f };
 	uniforms.time = 1.0f;
@@ -706,7 +706,7 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
 	requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
 	requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
-	requiredLimits.limits.maxInterStageShaderComponents = 6;
+	requiredLimits.limits.maxInterStageShaderComponents = 8;
 	// We use at most 1 bind group for now
 	requiredLimits.limits.maxBindGroups = 1;
 	// We use at most 1 uniform buffer per stage
