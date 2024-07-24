@@ -3,83 +3,16 @@
 constexpr float PI = 3.14159265358979323846f;
 
 bool Application::Initialize() {
-	// Open window
-	glfwInit();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-	m_window = glfwCreateWindow((int)m_windowDimensions.x, (int)m_windowDimensions.y, "Learn WebGPU", nullptr, nullptr);
-	
-	Instance instance = wgpuCreateInstance(nullptr);
-	
-	m_surface = glfwGetWGPUSurface(instance, m_window);
-	
-	std::cout << "Requesting adapter..." << std::endl;
-	m_surface = glfwGetWGPUSurface(instance, m_window);
-	RequestAdapterOptions adapterOpts = {};
-	adapterOpts.compatibleSurface = m_surface;
-	Adapter adapter = instance.requestAdapter(adapterOpts);
-	std::cout << "Got adapter: " << adapter << std::endl;
-	
-	instance.release();
-	
-	std::cout << "Requesting device..." << std::endl;
-	DeviceDescriptor deviceDesc = {};
-	deviceDesc.label = "My Device";
-	deviceDesc.requiredFeatureCount = 0;
-	deviceDesc.requiredLimits = nullptr;
-	deviceDesc.defaultQueue.nextInChain = nullptr;
-	deviceDesc.defaultQueue.label = "The default queue";
-	deviceDesc.deviceLostCallback = [](WGPUDeviceLostReason reason, char const* message, void* /* pUserData */) {
-		std::cout << "Device lost: reason " << reason;
-		if (message) std::cout << " (" << message << ")";
-		std::cout << std::endl;
-	};
+	InitWindow();
+	InitInstanceAndSurface();
+	InitDevice();
+	InitQueue();
 
-	// Before adapter.requestDevice(deviceDesc)
-	RequiredLimits requiredLimits = GetRequiredLimits(adapter);
-	deviceDesc.requiredLimits = &requiredLimits;
-
-	m_device = adapter.requestDevice(deviceDesc);
-	std::cout << "Got device: " << m_device << std::endl;
-	
-	uncapturedErrorCallbackHandle = m_device.setUncapturedErrorCallback([](ErrorType type, char const* message) {
-		std::cout << "Uncaptured device error: type " << type;
-		if (message) std::cout << " (" << message << ")";
-		std::cout << std::endl;
-	});
-	
-	m_queue = m_device.getQueue();
-
-	// Configure the surface
-	SurfaceConfiguration config = {};
-	
-	// Configuration of the textures created for the underlying swap chain
-	config.width = static_cast<uint32_t>(m_windowDimensions.x);
-	config.height = static_cast<uint32_t>(m_windowDimensions.y);
-	config.usage = TextureUsage::RenderAttachment;
-	m_surfaceFormat = m_surface.getPreferredFormat(adapter);
-	config.format = m_surfaceFormat;
-
-	// And we do not need any particular view format:
-	config.viewFormatCount = 0;
-	config.viewFormats = nullptr;
-	config.device = m_device;
-	config.presentMode = PresentMode::Fifo;
-	config.alphaMode = CompositeAlphaMode::Auto;
-
-	m_surface.configure(config);
-
-	// Release the adapter only after it has been fully utilized
-	adapter.release();
+	ConfigureSurface();
 
 	// At the end of Initialize()
-	InitializePipeline();
-
-	// Initialize Buffers
-	InitializeBuffers();
-
-	// Buffer experiments
-	//PlayWithBuffers();
+	InitPipeline();
+	InitBuffers();
 	
 	return true;
 }
@@ -202,32 +135,94 @@ bool Application::IsRunning() {
 }
 
 
-TextureView Application::GetNextSurfaceTextureView() {
-	// Get the surface texture
-	SurfaceTexture surfaceTexture;
-	m_surface.getCurrentTexture(&surfaceTexture);
-	if (surfaceTexture.status != SurfaceGetCurrentTextureStatus::Success) {
-		return nullptr;
-	}
-	Texture texture = surfaceTexture.texture;
-
-	// Create a view for this surface texture
-	TextureViewDescriptor viewDescriptor;
-	viewDescriptor.label = "Surface texture view";
-	viewDescriptor.format = texture.getFormat();
-	viewDescriptor.dimension = TextureViewDimension::_2D;
-	viewDescriptor.baseMipLevel = 0;
-	viewDescriptor.mipLevelCount = 1;
-	viewDescriptor.baseArrayLayer = 0;
-	viewDescriptor.arrayLayerCount = 1;
-	viewDescriptor.aspect = TextureAspect::All;
-	TextureView targetView = texture.createView(viewDescriptor);
-
-	return targetView;
+void Application::InitWindow()
+{
+	// Open window
+	glfwInit();
+	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	m_window = glfwCreateWindow((int)m_windowDimensions.x, (int)m_windowDimensions.y, "Learn WebGPU", nullptr, nullptr);
 }
 
 
-void Application::SetupDepthTextureView()
+void Application::InitInstanceAndSurface()
+{
+	Instance instance = wgpuCreateInstance(nullptr);
+
+	m_surface = glfwGetWGPUSurface(instance, m_window);
+
+	std::cout << "Requesting adapter..." << std::endl;
+	m_surface = glfwGetWGPUSurface(instance, m_window);
+	RequestAdapterOptions adapterOpts = {};
+	adapterOpts.compatibleSurface = m_surface;
+	m_adapter = instance.requestAdapter(adapterOpts);
+	std::cout << "Got adapter: " << m_adapter << std::endl;
+
+	instance.release();
+}
+
+
+void Application::InitDevice()
+{
+	std::cout << "Requesting device..." << std::endl;
+	DeviceDescriptor deviceDesc = {};
+	deviceDesc.label = "My Device";
+	deviceDesc.requiredFeatureCount = 0;
+	deviceDesc.requiredLimits = nullptr;
+	deviceDesc.defaultQueue.nextInChain = nullptr;
+	deviceDesc.defaultQueue.label = "The default queue";
+	deviceDesc.deviceLostCallback = [](WGPUDeviceLostReason reason, char const* message, void* /* pUserData */) {
+		std::cout << "Device lost: reason " << reason;
+		if (message) std::cout << " (" << message << ")";
+		std::cout << std::endl;
+		};
+
+	// Before adapter.requestDevice(deviceDesc)
+	RequiredLimits requiredLimits = GetRequiredLimits(m_adapter);
+	deviceDesc.requiredLimits = &requiredLimits;
+
+	m_device = m_adapter.requestDevice(deviceDesc);
+	std::cout << "Got device: " << m_device << std::endl;
+
+	uncapturedErrorCallbackHandle = m_device.setUncapturedErrorCallback([](ErrorType type, char const* message) {
+		std::cout << "Uncaptured device error: type " << type;
+		if (message) std::cout << " (" << message << ")";
+		std::cout << std::endl;
+		});
+}
+
+void Application::InitQueue()
+{
+	m_queue = m_device.getQueue();
+}
+
+
+void Application::ConfigureSurface()
+{
+	// Configure the surface
+	SurfaceConfiguration config = {};
+
+	// Configuration of the textures created for the underlying swap chain
+	config.width = static_cast<uint32_t>(m_windowDimensions.x);
+	config.height = static_cast<uint32_t>(m_windowDimensions.y);
+	config.usage = TextureUsage::RenderAttachment;
+	m_surfaceFormat = m_surface.getPreferredFormat(m_adapter);
+	config.format = m_surfaceFormat;
+
+	// And we do not need any particular view format:
+	config.viewFormatCount = 0;
+	config.viewFormats = nullptr;
+	config.device = m_device;
+	config.presentMode = PresentMode::Fifo;
+	config.alphaMode = CompositeAlphaMode::Auto;
+
+	m_surface.configure(config);
+
+
+	m_adapter.release();
+}
+
+void Application::InitDepthTextureView()
 {
 	// Create the depth texture
 	TextureDescriptor depthTextureDesc;
@@ -254,17 +249,17 @@ void Application::SetupDepthTextureView()
 }
 
 
-void Application::InitializeTexture()
+void Application::InitTexture()
 {
 	m_textureView = nullptr;
-	m_texture = Loader::loadTexture(RESOURCE_DIR "/texture_flatspot.png", m_device, &m_textureView);
+	m_texture = Loader::loadTexture(RESOURCE_DIR "/fourareen2K_albedo.jpg", m_device, &m_textureView);
 	if (!m_texture) {
 		std::cerr << "Could not load texture!" << std::endl;
 	}
 }
 
 
-void Application::InitializeSampler()
+void Application::InitSampler()
 {
 	SamplerDescriptor samplerDesc;
 	samplerDesc.addressModeU = AddressMode::Repeat;
@@ -283,7 +278,7 @@ void Application::InitializeSampler()
 }
 
 
-void Application::InitializePipeline()
+void Application::InitPipeline()
 {
 	std::cout << "Creating shader module..." << std::endl;
 	ShaderModule shaderModule = Loader::loadShaderModule(RESOURCE_DIR "/shader.wgsl", m_device);
@@ -434,7 +429,7 @@ void Application::InitializePipeline()
 	bufferDesc.mappedAtCreation = false;
 	m_uniformBuffer = m_device.createBuffer(bufferDesc);
 
-	InitializeUniforms();
+	InitUniforms();
 
 	m_queue.writeBuffer(m_uniformBuffer, 0, &m_uniforms, sizeof(MyUniforms));
 
@@ -485,11 +480,11 @@ void Application::InitializePipeline()
 	// Assign the PipelineLayout to the RenderPipelineDescriptor's layout field
 	pipelineDesc.layout = layout;
 
-	SetupDepthTextureView();
+	InitDepthTextureView();
 
-	InitializeTexture();
+	InitTexture();
 
-	InitializeSampler();
+	InitSampler();
 
 	// Create a binding
 	std::vector<BindGroupEntry> bindings(3);
@@ -519,10 +514,10 @@ void Application::InitializePipeline()
 }
 
 
-void Application::InitializeBuffers()
+void Application::InitBuffers()
 {
 	// Load mesh data from OBJ file
-	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/flatspot_car_2.obj", m_vertexData);
+	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/fourareen.obj", m_vertexData);
 	if (!success) {
 		std::cerr << "Could not load geometry!" << std::endl;
 		return;
@@ -548,7 +543,7 @@ void Application::InitializeBuffers()
 }
 
 
-void Application::InitializeUniforms()
+void Application::InitUniforms()
 {
 	// Upload the initial value of the uniforms
 	m_uniforms = MyUniforms();
@@ -576,6 +571,31 @@ void Application::UpdateUniforms()
 	/*float viewZ = glm::mix(0.0f, 0.25f, cos(2 * PI * uniforms.time / 4) * 0.5 + 0.5);
 	uniforms.viewMatrix = glm::lookAt(glm::vec3(-0.5f, -1.5f, viewZ + 0.25f), glm::vec3(0.0f), glm::vec3(0, 0, 1));
 	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, viewMatrix), &uniforms.viewMatrix, sizeof(MyUniforms::viewMatrix));*/
+}
+
+
+TextureView Application::GetNextSurfaceTextureView() {
+	// Get the surface texture
+	SurfaceTexture surfaceTexture;
+	m_surface.getCurrentTexture(&surfaceTexture);
+	if (surfaceTexture.status != SurfaceGetCurrentTextureStatus::Success) {
+		return nullptr;
+	}
+	Texture texture = surfaceTexture.texture;
+
+	// Create a view for this surface texture
+	TextureViewDescriptor viewDescriptor;
+	viewDescriptor.label = "Surface texture view";
+	viewDescriptor.format = texture.getFormat();
+	viewDescriptor.dimension = TextureViewDimension::_2D;
+	viewDescriptor.baseMipLevel = 0;
+	viewDescriptor.mipLevelCount = 1;
+	viewDescriptor.baseArrayLayer = 0;
+	viewDescriptor.arrayLayerCount = 1;
+	viewDescriptor.aspect = TextureAspect::All;
+	TextureView targetView = texture.createView(viewDescriptor);
+
+	return targetView;
 }
 
 

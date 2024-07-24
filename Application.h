@@ -45,14 +45,21 @@ public:
 	bool IsRunning();
 
 private:
-	void SetupDepthTextureView();
-	void InitializeTexture();
-	void InitializeSampler();
+	void InitWindow();
+	void InitInstanceAndSurface();
+	void InitDevice();
+	void InitQueue();
 
-	void InitializePipeline();
-	void InitializeBuffers();
+	void ConfigureSurface();
 
-	void InitializeUniforms();
+	void InitDepthTextureView();
+	void InitTexture();
+	void InitSampler();
+
+	void InitPipeline();
+	void InitBuffers();
+
+	void InitUniforms();
 	void UpdateUniforms();
 
 	TextureView GetNextSurfaceTextureView();
@@ -74,6 +81,7 @@ private:
 
 	// We put here all the variables that are shared between init and main loop
 	GLFWwindow *m_window;
+	Adapter m_adapter;
 	Device m_device;
 	Queue m_queue;
 	Surface m_surface;
