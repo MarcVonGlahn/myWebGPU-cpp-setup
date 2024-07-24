@@ -38,6 +38,7 @@ void Application::Terminate() {
 void Application::MainLoop() {
 	glfwPollEvents();
 
+	UpdateDragInertia();
 	UpdateUniforms();
 
 	// Get the next target texture view
@@ -163,6 +164,53 @@ void Application::OnResize()
 }
 
 
+void Application::OnMouseMove(double xpos, double ypos)
+{
+	if (m_drag.active) {
+		glm::vec2 currentMouse = glm::vec2(-(float)xpos, (float)ypos);
+
+		// glm::vec2 delta = (m_drag.startMouse - currentMouse) * m_drag.sensitivity;		// Inverted
+		glm::vec2 delta = (currentMouse - m_drag.startMouse) * m_drag.sensitivity;		// Not Inverted
+
+		m_cameraState.angles = m_drag.startCameraState.angles + delta;
+		// Clamp to avoid going too far when orbitting up/down
+		m_cameraState.angles.y = glm::clamp(m_cameraState.angles.y, -PI / 2 + 1e-5f, PI / 2 - 1e-5f);
+		UpdateViewMatrix();
+
+		// Inertia
+		m_drag.velocity = delta - m_drag.previousDelta;
+		m_drag.previousDelta = delta;
+	}
+}
+
+
+void Application::OnMouseButton(int button, int action, int mods)
+{
+	if (button == GLFW_MOUSE_BUTTON_LEFT) {
+		switch (action) {
+		case GLFW_PRESS:
+			m_drag.active = true;
+			double xpos, ypos;
+			glfwGetCursorPos(m_window, &xpos, &ypos);
+			m_drag.startMouse = glm::vec2(-(float)xpos, (float)ypos);
+			m_drag.startCameraState = m_cameraState;
+			break;
+		case GLFW_RELEASE:
+			m_drag.active = false;
+			break;
+		}
+	}
+}
+
+
+void Application::OnScroll(double xoffset, double yoffset)
+{
+	m_cameraState.zoom += m_drag.scrollSensitivity * static_cast<float>(yoffset);
+	m_cameraState.zoom = glm::clamp(m_cameraState.zoom, -2.0f, 2.0f);
+	UpdateViewMatrix();
+}
+
+
 // /////////////////////////////////////////////////////////////////////
 // private:
 
@@ -255,6 +303,18 @@ void Application::ConfigureSurface()
 	glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* window, int, int) {
 		auto that = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
 		if (that != nullptr) that->OnResize();
+		});
+	glfwSetCursorPosCallback(m_window, [](GLFWwindow* window, double xpos, double ypos) {
+		auto that = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+		if (that != nullptr) that->OnMouseMove(xpos, ypos);
+		});
+	glfwSetMouseButtonCallback(m_window, [](GLFWwindow* window, int button, int action, int mods) {
+		auto that = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+		if (that != nullptr) that->OnMouseButton(button, action, mods);
+		});
+	glfwSetScrollCallback(m_window, [](GLFWwindow* window, double xoffset, double yoffset) {
+		auto that = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+		if (that != nullptr) that->OnScroll(xoffset, yoffset);
 		});
 
 
@@ -594,6 +654,8 @@ void Application::InitUniforms()
 
 	m_uniforms.color = { 0.0f, 0.0f, 0.0f, 1.0f };
 	m_uniforms.time = 1.0f;
+
+	UpdateViewMatrix();
 }
 
 
@@ -635,6 +697,42 @@ void Application::UpdateProjectionMatrix()
 		&m_uniforms.projectionMatrix,
 		sizeof(MyUniforms::projectionMatrix)
 	);
+}
+
+
+void Application::UpdateViewMatrix()
+{
+	float cx = cos(m_cameraState.angles.x);
+	float sx = sin(m_cameraState.angles.x);
+	float cy = cos(m_cameraState.angles.y);
+	float sy = sin(m_cameraState.angles.y);
+	glm::vec3 position = glm::vec3(cx * cy, sx * cy, sy) * std::exp(-m_cameraState.zoom);
+	m_uniforms.viewMatrix = glm::lookAt(position, glm::vec3(0.0f), glm::vec3(0, 0, 1));
+	m_queue.writeBuffer(
+		m_uniformBuffer,
+		offsetof(MyUniforms, viewMatrix),
+		&m_uniforms.viewMatrix,
+		sizeof(MyUniforms::viewMatrix)
+	);
+}
+
+
+void Application::UpdateDragInertia()
+{
+	constexpr float eps = 1e-4f;
+	// Apply inertia only when the user released the click.
+	if (!m_drag.active) {
+		// Avoid updating the matrix when the velocity is no longer noticeable
+		if (std::abs(m_drag.velocity.x) < eps && std::abs(m_drag.velocity.y) < eps) {
+			return;
+		}
+		m_cameraState.angles += m_drag.velocity;
+		m_cameraState.angles.y = glm::clamp(m_cameraState.angles.y, -PI / 2 + 1e-5f, PI / 2 - 1e-5f);
+		// Dampen the velocity so that it decreases exponentially and stops
+		// after a few frames.
+		m_drag.velocity *= m_drag.intertia;
+		UpdateViewMatrix();
+	}
 }
 
 
