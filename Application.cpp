@@ -1,6 +1,5 @@
 #include "Application.h"
 
-
 constexpr float PI = 3.14159265358979323846f;
 
 bool Application::Initialize() {
@@ -8,16 +7,16 @@ bool Application::Initialize() {
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-	window = glfwCreateWindow(640, 480, "Learn WebGPU", nullptr, nullptr);
+	m_window = glfwCreateWindow((int)m_windowDimensions.x, (int)m_windowDimensions.y, "Learn WebGPU", nullptr, nullptr);
 	
 	Instance instance = wgpuCreateInstance(nullptr);
 	
-	surface = glfwGetWGPUSurface(instance, window);
+	m_surface = glfwGetWGPUSurface(instance, m_window);
 	
 	std::cout << "Requesting adapter..." << std::endl;
-	surface = glfwGetWGPUSurface(instance, window);
+	m_surface = glfwGetWGPUSurface(instance, m_window);
 	RequestAdapterOptions adapterOpts = {};
-	adapterOpts.compatibleSurface = surface;
+	adapterOpts.compatibleSurface = m_surface;
 	Adapter adapter = instance.requestAdapter(adapterOpts);
 	std::cout << "Got adapter: " << adapter << std::endl;
 	
@@ -40,35 +39,35 @@ bool Application::Initialize() {
 	RequiredLimits requiredLimits = GetRequiredLimits(adapter);
 	deviceDesc.requiredLimits = &requiredLimits;
 
-	device = adapter.requestDevice(deviceDesc);
-	std::cout << "Got device: " << device << std::endl;
+	m_device = adapter.requestDevice(deviceDesc);
+	std::cout << "Got device: " << m_device << std::endl;
 	
-	uncapturedErrorCallbackHandle = device.setUncapturedErrorCallback([](ErrorType type, char const* message) {
+	uncapturedErrorCallbackHandle = m_device.setUncapturedErrorCallback([](ErrorType type, char const* message) {
 		std::cout << "Uncaptured device error: type " << type;
 		if (message) std::cout << " (" << message << ")";
 		std::cout << std::endl;
 	});
 	
-	queue = device.getQueue();
+	m_queue = m_device.getQueue();
 
 	// Configure the surface
 	SurfaceConfiguration config = {};
 	
 	// Configuration of the textures created for the underlying swap chain
-	config.width = 640;
-	config.height = 480;
+	config.width = static_cast<uint32_t>(m_windowDimensions.x);
+	config.height = static_cast<uint32_t>(m_windowDimensions.y);
 	config.usage = TextureUsage::RenderAttachment;
-	surfaceFormat = surface.getPreferredFormat(adapter);
-	config.format = surfaceFormat;
+	m_surfaceFormat = m_surface.getPreferredFormat(adapter);
+	config.format = m_surfaceFormat;
 
 	// And we do not need any particular view format:
 	config.viewFormatCount = 0;
 	config.viewFormats = nullptr;
-	config.device = device;
+	config.device = m_device;
 	config.presentMode = PresentMode::Fifo;
 	config.alphaMode = CompositeAlphaMode::Auto;
 
-	surface.configure(config);
+	m_surface.configure(config);
 
 	// Release the adapter only after it has been fully utilized
 	adapter.release();
@@ -85,24 +84,23 @@ bool Application::Initialize() {
 	return true;
 }
 
+
 void Application::Terminate() {
-	depthTextureView.release();
-	depthTexture.destroy();
-	depthTexture.release();
+	m_depthTextureView.release();
+	m_depthTexture.destroy();
+	m_depthTexture.release();
 
 	m_texture.destroy();
 	m_texture.release();
-
-	pointBuffer.release();
-	indexBuffer.release();
-	pipeline.release();
-	surface.unconfigure();
-	queue.release();
-	surface.release();
-	device.release();
-	glfwDestroyWindow(window);
+	m_pipeline.release();
+	m_surface.unconfigure();
+	m_queue.release();
+	m_surface.release();
+	m_device.release();
+	glfwDestroyWindow(m_window);
 	glfwTerminate();
 }
+
 
 void Application::MainLoop() {
 	glfwPollEvents();
@@ -116,7 +114,7 @@ void Application::MainLoop() {
 	// Create a command encoder for the draw call
 	CommandEncoderDescriptor encoderDesc = {};
 	encoderDesc.label = "My command encoder";
-	CommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device, &encoderDesc);
+	CommandEncoder encoder = wgpuDeviceCreateCommandEncoder(m_device, &encoderDesc);
 
 
 	// Create the render pass that clears the screen with our color
@@ -137,7 +135,7 @@ void Application::MainLoop() {
 	renderPassDesc.colorAttachments = &renderPassColorAttachment;
 	// We now add a depth/stencil attachment:
 	RenderPassDepthStencilAttachment depthStencilAttachment;
-	depthStencilAttachment.view = depthTextureView;
+	depthStencilAttachment.view = m_depthTextureView;
 	depthStencilAttachment.depthClearValue = 1.0f;
 	depthStencilAttachment.depthLoadOp = LoadOp::Clear;
 	depthStencilAttachment.depthStoreOp = StoreOp::Store;
@@ -159,10 +157,10 @@ void Application::MainLoop() {
 	RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
 
 	// Select which render pipeline to use
-	renderPass.setPipeline(pipeline);
+	renderPass.setPipeline(m_pipeline);
 
 	// Set both vertex and index buffers
-	renderPass.setVertexBuffer(0, vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
+	renderPass.setVertexBuffer(0, m_vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
 	// The second argument must correspond to the choice of uint16_t or uint32_t
 
 	// Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
@@ -170,7 +168,7 @@ void Application::MainLoop() {
 	// Set binding group
 	renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
 
-	renderPass.draw(indexCount, 1, 0, 0);
+	renderPass.draw(m_indexCount, 1, 0, 0);
 
 	renderPass.end();
 	renderPass.release();
@@ -182,32 +180,32 @@ void Application::MainLoop() {
 	encoder.release();
 
 	std::cout << "Submitting command..." << std::endl;
-	queue.submit(1, &command);
+	m_queue.submit(1, &command);
 	command.release();
 	std::cout << "Command submitted." << std::endl;
 
 	// At the enc of the frame
 	targetView.release();
 #ifndef __EMSCRIPTEN__
-	surface.present();
+	m_surface.present();
 #endif
 
 #if defined(WEBGPU_BACKEND_DAWN)
-	device.tick();
+	m_device.tick();
 #elif defined(WEBGPU_BACKEND_WGPU)
 	device.poll(false);
 #endif
 }
 
 bool Application::IsRunning() {
-	return !glfwWindowShouldClose(window);
+	return !glfwWindowShouldClose(m_window);
 }
 
 
 TextureView Application::GetNextSurfaceTextureView() {
 	// Get the surface texture
 	SurfaceTexture surfaceTexture;
-	surface.getCurrentTexture(&surfaceTexture);
+	m_surface.getCurrentTexture(&surfaceTexture);
 	if (surfaceTexture.status != SurfaceGetCurrentTextureStatus::Success) {
 		return nullptr;
 	}
@@ -228,19 +226,20 @@ TextureView Application::GetNextSurfaceTextureView() {
 	return targetView;
 }
 
+
 void Application::SetupDepthTextureView()
 {
 	// Create the depth texture
 	TextureDescriptor depthTextureDesc;
 	depthTextureDesc.dimension = TextureDimension::_2D;
-	depthTextureDesc.format = depthTextureFormat;
+	depthTextureDesc.format = m_depthTextureFormat;
 	depthTextureDesc.mipLevelCount = 1;
 	depthTextureDesc.sampleCount = 1;
-	depthTextureDesc.size = { 640, 480, 1 };
+	depthTextureDesc.size = { static_cast<uint16_t>(m_windowDimensions.x), static_cast<uint16_t>(m_windowDimensions.y), 1 };
 	depthTextureDesc.usage = TextureUsage::RenderAttachment;
 	depthTextureDesc.viewFormatCount = 1;
-	depthTextureDesc.viewFormats = (WGPUTextureFormat*)&depthTextureFormat;
-	depthTexture = device.createTexture(depthTextureDesc);
+	depthTextureDesc.viewFormats = (WGPUTextureFormat*)&m_depthTextureFormat;
+	m_depthTexture = m_device.createTexture(depthTextureDesc);
 
 	// Create the view of the depth texture manipulated by the rasterizer
 	TextureViewDescriptor depthTextureViewDesc;
@@ -250,76 +249,22 @@ void Application::SetupDepthTextureView()
 	depthTextureViewDesc.baseMipLevel = 0;
 	depthTextureViewDesc.mipLevelCount = 1;
 	depthTextureViewDesc.dimension = TextureViewDimension::_2D;
-	depthTextureViewDesc.format = depthTextureFormat;
-	depthTextureView = depthTexture.createView(depthTextureViewDesc);
+	depthTextureViewDesc.format = m_depthTextureFormat;
+	m_depthTextureView = m_depthTexture.createView(depthTextureViewDesc);
 }
 
-void Application::DoTextureCreation()
+
+void Application::InitializeTexture()
 {
 	m_textureView = nullptr;
-	m_texture = Loader::loadTexture(RESOURCE_DIR "/texture_flatspot.png", device, &m_textureView);
+	m_texture = Loader::loadTexture(RESOURCE_DIR "/texture_flatspot.png", m_device, &m_textureView);
 	if (!m_texture) {
 		std::cerr << "Could not load texture!" << std::endl;
 	}
-
-	// [...] setup descriptor
-	/*m_textureDesc.dimension = TextureDimension::_2D;
-	m_textureDesc.size = { 256, 256, 1 };
-	                             ^ ignored because it is a 2D texture
-
-	m_textureDesc.mipLevelCount = 8;
-	m_textureDesc.sampleCount = 1;
-
-	m_textureDesc.format = TextureFormat::RGBA8Unorm;
-
-	m_textureDesc.usage = TextureUsage::TextureBinding | TextureUsage::CopyDst;
-
-	m_textureDesc.viewFormatCount = 0;
-	m_textureDesc.viewFormats = nullptr;*/
-
-	//m_texture = device.createTexture(m_textureDesc);
-
-	//TextureViewDescriptor textureViewDesc;
-	//textureViewDesc.aspect = TextureAspect::All;
-	//textureViewDesc.baseArrayLayer = 0;
-	//textureViewDesc.arrayLayerCount = 1;
-	//textureViewDesc.baseMipLevel = 0;
-	//textureViewDesc.mipLevelCount = m_textureDesc.mipLevelCount;
-	//textureViewDesc.dimension = TextureViewDimension::_2D;
-	//textureViewDesc.format = m_textureDesc.format;
-	//m_textureView = m_texture.createView(textureViewDesc);
-
-
-	//// Create image data
-	//std::vector<uint8_t> pixels(4 * m_textureDesc.size.width * m_textureDesc.size.height);
-	//for (uint32_t i = 0; i < m_textureDesc.size.width; ++i) {
-	//	for (uint32_t j = 0; j < m_textureDesc.size.height; ++j) {
-	//		uint8_t* p = &pixels[4 * (j * m_textureDesc.size.width + i)];
-	//		p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0; // r
-	//		p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0; // g
-	//		p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0; // b
-	//		p[3] = 255; // a
-	//	}
-	//}
-
-	//// Arguments telling which part of the texture we upload to
-	//// (together with the last argument of writeTexture)
-	//ImageCopyTexture destination;
-	//destination.texture = m_texture;
-	//destination.mipLevel = 0;
-	//destination.origin = { 0, 0, 0 }; // equivalent of the offset argument of Queue::writeBuffer
-	//destination.aspect = TextureAspect::All; // only relevant for depth/Stencil textures
-
-	//// Arguments telling how the C++ side pixel memory is laid out
-	//TextureDataLayout source;
-	//source.offset = 0;
-	//source.bytesPerRow = 4 * m_textureDesc.size.width;
-	//source.rowsPerImage = m_textureDesc.size.height;
-
-	/*queue.writeTexture(destination, pixels.data(), pixels.size(), source, m_textureDesc.size);*/
 }
 
-void Application::DoSamplerCreation()
+
+void Application::InitializeSampler()
 {
 	SamplerDescriptor samplerDesc;
 	samplerDesc.addressModeU = AddressMode::Repeat;
@@ -334,69 +279,14 @@ void Application::DoSamplerCreation()
 	samplerDesc.lodMaxClamp = 8.0f;
 	samplerDesc.compare = CompareFunction::Undefined;
 	samplerDesc.maxAnisotropy = 1;
-	m_sampler = device.createSampler(samplerDesc);
-
-
-
-	//// Create and upload texture data, one mip level at a time
-	//ImageCopyTexture destination;
-	//destination.texture = m_texture;
-	//destination.origin = { 0, 0, 0 };
-	//destination.aspect = TextureAspect::All;
-
-	//TextureDataLayout source;
-	//source.offset = 0;
-
-	//Extent3D mipLevelSize = m_textureDesc.size;
-	//std::vector<uint8_t> previousLevelPixels;
-	//for (uint32_t level = 0; level < m_textureDesc.mipLevelCount; ++level) {
-	//	// Create image data
-	//	std::vector<uint8_t> pixels(4 * mipLevelSize.width * mipLevelSize.height);
-	//	for (uint32_t i = 0; i < mipLevelSize.width; ++i) {
-	//		for (uint32_t j = 0; j < mipLevelSize.height; ++j) {
-	//			uint8_t* p = &pixels[4 * (j * mipLevelSize.width + i)];
-	//			if (level == 0) {
-	//				p[0] = (i / 16) % 2 == (j / 16) % 2 ? 255 : 0; // r
-	//				p[1] = ((i - j) / 16) % 2 == 0 ? 255 : 0; // g
-	//				p[2] = ((i + j) / 16) % 2 == 0 ? 255 : 0; // b
-	//			}
-	//			else {
-	//				// Get the corresponding 4 pixels from the previous level
-	//				uint8_t* p00 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 0))];
-	//				uint8_t* p01 = &previousLevelPixels[4 * ((2 * j + 0) * (2 * mipLevelSize.width) + (2 * i + 1))];
-	//				uint8_t* p10 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 0))];
-	//				uint8_t* p11 = &previousLevelPixels[4 * ((2 * j + 1) * (2 * mipLevelSize.width) + (2 * i + 1))];
-	//				// Average
-	//				p[0] = (p00[0] + p01[0] + p10[0] + p11[0]) / 4;
-	//				p[1] = (p00[1] + p01[1] + p10[1] + p11[1]) / 4;
-	//				p[2] = (p00[2] + p01[2] + p10[2] + p11[2]) / 4;
-	//			}
-	//			p[3] = 255; // a
-	//		}
-	//	}
-
-	//	// Change this to the current level
-	//	destination.mipLevel = level;
-
-	//	// Compute from the mip level size
-	//	source.bytesPerRow = 4 * mipLevelSize.width;
-	//	source.rowsPerImage = mipLevelSize.height;
-
-	//	queue.writeTexture(destination, pixels.data(), pixels.size(), source, mipLevelSize);
-
-	//	// The size of the next mip level:
-	//	// (see https://www.w3.org/TR/webgpu/#logical-miplevel-specific-texture-extent)
-	//	mipLevelSize.width /= 2;
-	//	mipLevelSize.height /= 2;
-	//	previousLevelPixels = std::move(pixels);
-	//}
+	m_sampler = m_device.createSampler(samplerDesc);
 }
 
 
 void Application::InitializePipeline()
 {
 	std::cout << "Creating shader module..." << std::endl;
-	ShaderModule shaderModule = Loader::loadShaderModule(RESOURCE_DIR "/shader.wgsl", device);
+	ShaderModule shaderModule = Loader::loadShaderModule(RESOURCE_DIR "/shader.wgsl", m_device);
 	std::cout << "Shader module: " << shaderModule << std::endl;
 
 	RenderPipelineDescriptor pipelineDesc;
@@ -492,7 +382,7 @@ void Application::InitializePipeline()
 	blendState.alpha.operation = BlendOperation::Add;
 
 	ColorTargetState colorTarget;
-	colorTarget.format = surfaceFormat;
+	colorTarget.format = m_surfaceFormat;
 	colorTarget.blend = &blendState;
 	colorTarget.writeMask = ColorWriteMask::All; // We could write to only some of the color channels.
 
@@ -515,8 +405,8 @@ void Application::InitializePipeline()
 	depthStencilState.depthWriteEnabled = true;
 
 	// Store the format in a variable as later parts of the code depend on it
-	depthTextureFormat = TextureFormat::Depth24Plus;
-	depthStencilState.format = depthTextureFormat;
+	m_depthTextureFormat = TextureFormat::Depth24Plus;
+	depthStencilState.format = m_depthTextureFormat;
 
 	// Deactivate the stencil alltogether
 	depthStencilState.stencilReadMask = 0;
@@ -542,11 +432,11 @@ void Application::InitializePipeline()
 	// Make sure to flag the buffer as BufferUsage::Uniform
 	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Uniform;
 	bufferDesc.mappedAtCreation = false;
-	uniformBuffer = device.createBuffer(bufferDesc);
+	m_uniformBuffer = m_device.createBuffer(bufferDesc);
 
 	InitializeUniforms();
 
-	queue.writeBuffer(uniformBuffer, 0, &uniforms, sizeof(MyUniforms));
+	m_queue.writeBuffer(m_uniformBuffer, 0, &m_uniforms, sizeof(MyUniforms));
 
 
 
@@ -582,7 +472,7 @@ void Application::InitializePipeline()
 	BindGroupLayoutDescriptor bindGroupLayoutDesc{};
 	bindGroupLayoutDesc.entryCount = (uint32_t)bindingLayoutEntries.size();
 	bindGroupLayoutDesc.entries = bindingLayoutEntries.data();
-	BindGroupLayout bindGroupLayout = device.createBindGroupLayout(bindGroupLayoutDesc);
+	BindGroupLayout bindGroupLayout = m_device.createBindGroupLayout(bindGroupLayoutDesc);
 
 
 
@@ -590,23 +480,23 @@ void Application::InitializePipeline()
 	PipelineLayoutDescriptor layoutDesc;
 	layoutDesc.bindGroupLayoutCount = 1;
 	layoutDesc.bindGroupLayouts = (WGPUBindGroupLayout*)&bindGroupLayout;
-	PipelineLayout layout = device.createPipelineLayout(layoutDesc);
+	PipelineLayout layout = m_device.createPipelineLayout(layoutDesc);
 
 	// Assign the PipelineLayout to the RenderPipelineDescriptor's layout field
 	pipelineDesc.layout = layout;
 
 	SetupDepthTextureView();
 
-	DoTextureCreation();
+	InitializeTexture();
 
-	DoSamplerCreation();
+	InitializeSampler();
 
 	// Create a binding
 	std::vector<BindGroupEntry> bindings(3);
 	//                                   ^ This was a 2
 
 	bindings[0].binding = 0;
-	bindings[0].buffer = uniformBuffer;
+	bindings[0].buffer = m_uniformBuffer;
 	bindings[0].offset = 0;
 	bindings[0].size = sizeof(MyUniforms);
 
@@ -620,13 +510,14 @@ void Application::InitializePipeline()
 	bindGroupDesc.layout = bindGroupLayout;
 	bindGroupDesc.entryCount = (uint32_t)bindings.size();
 	bindGroupDesc.entries = bindings.data();
-	m_bindGroup = device.createBindGroup(bindGroupDesc);
+	m_bindGroup = m_device.createBindGroup(bindGroupDesc);
 
-	pipeline = device.createRenderPipeline(pipelineDesc);
+	m_pipeline = m_device.createRenderPipeline(pipelineDesc);
 
 	// We no longer need to access the shader module
 	shaderModule.release();
 }
+
 
 void Application::InitializeBuffers()
 {
@@ -642,10 +533,10 @@ void Application::InitializeBuffers()
 	bufferDesc.size = m_vertexData.size() * sizeof(VertexAttributes); // changed
 	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Vertex;
 	bufferDesc.mappedAtCreation = false;
-	vertexBuffer = device.createBuffer(bufferDesc);
-	queue.writeBuffer(vertexBuffer, 0, m_vertexData.data(), bufferDesc.size); // changed
+	m_vertexBuffer = m_device.createBuffer(bufferDesc);
+	m_queue.writeBuffer(m_vertexBuffer, 0, m_vertexData.data(), bufferDesc.size); // changed
 
-	indexCount = static_cast<int>(m_vertexData.size()); // changed
+	m_indexCount = static_cast<int>(m_vertexData.size()); // changed
 
 	// Create index buffer
 	// (we reuse the bufferDesc initialized for the pointBuffer)
@@ -660,115 +551,31 @@ void Application::InitializeBuffers()
 void Application::InitializeUniforms()
 {
 	// Upload the initial value of the uniforms
-	uniforms = MyUniforms();
+	m_uniforms = MyUniforms();
 
 	// Matrices
-	uniforms.modelMatrix = glm::mat4x4(1.0);
-	uniforms.viewMatrix = glm::lookAt(glm::vec3(-1.0f, -2.0f, 1.0f), glm::vec3(0.0f), glm::vec3(0, 0, 1));
-	uniforms.projectionMatrix = glm::perspective(45 * PI / 180, 640.0f / 480.0f, 0.01f, 100.0f);
+	m_uniforms.modelMatrix = glm::mat4x4(1.0);
+	m_uniforms.viewMatrix = glm::lookAt(glm::vec3(-1.0f, -2.0f, 1.0f), glm::vec3(0.0f), glm::vec3(0, 0, 1));
+	m_uniforms.projectionMatrix = glm::perspective(45 * PI / 180, m_windowDimensions.x / m_windowDimensions.y, 0.01f, 100.0f);
 
-	uniforms.color = { 0.0f, 0.0f, 0.0f, 1.0f };
-	uniforms.time = 1.0f;
+	m_uniforms.color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	m_uniforms.time = 1.0f;
 }
 
 
 
 void Application::UpdateUniforms()
 {
-	uniforms.time = static_cast<float>(glfwGetTime());
+	m_uniforms.time = static_cast<float>(glfwGetTime());
 	// uniforms.color = { 5.0f * cos(uniforms.time), sin(uniforms.time), -sin(uniforms.time), 1.0f};
 
 	// Upload only the time, whichever its order in the struct
-	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, time), &uniforms.time, sizeof(MyUniforms::time));
+	m_queue.writeBuffer(m_uniformBuffer, offsetof(MyUniforms, time), &m_uniforms.time, sizeof(MyUniforms::time));
 
 	// In the main loop
 	/*float viewZ = glm::mix(0.0f, 0.25f, cos(2 * PI * uniforms.time / 4) * 0.5 + 0.5);
 	uniforms.viewMatrix = glm::lookAt(glm::vec3(-0.5f, -1.5f, viewZ + 0.25f), glm::vec3(0.0f), glm::vec3(0, 0, 1));
 	queue.writeBuffer(uniformBuffer, offsetof(MyUniforms, viewMatrix), &uniforms.viewMatrix, sizeof(MyUniforms::viewMatrix));*/
-}
-
-
-void Application::PlayWithBuffers()
-{
-	// Experimentation for the "Playing with buffer" chapter
-
-	// Create a First Buffer
-	BufferDescriptor bufferDesc;
-	bufferDesc.label = "Some GPU-side data buffer";
-	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::CopySrc;
-	bufferDesc.size = 16;
-	bufferDesc.mappedAtCreation = false;
-	Buffer buffer1 = device.createBuffer(bufferDesc);
-
-	// Create a second buffer
-	bufferDesc.label = "Output buffer";
-	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::MapRead;
-	Buffer buffer2 = device.createBuffer(bufferDesc);
-
-	// Write input data
-	// Create some CPU-side data buffer (of size 16 bytes)
-	std::vector<uint8_t> numbers(16);
-	for (uint8_t i = 0; i < 16; ++i) numbers[i] = i;
-	// `numbers` now contains [ 0, 1, 2, ... ]
-
-	// Copy this from `numbers` (RAM) to `buffer1` (VRAM)
-	queue.writeBuffer(buffer1, 0, numbers.data(), numbers.size());
-
-	// Encode and submit the buffer to buffer copy
-	CommandEncoder encoder = device.createCommandEncoder(Default);
-
-	// After creating the command encoder
-	encoder.copyBufferToBuffer(buffer1, 0, buffer2, 0, 16);
-
-	CommandBuffer command = encoder.finish(Default);
-	encoder.release();
-	queue.submit(1, &command);
-	command.release();
-
-	// Read buffer data back
-	// The context shared between this main function and the callback.
-	struct Context {
-		bool ready;
-		Buffer buffer;
-	};
-
-	auto onBuffer2Mapped = [](WGPUBufferMapAsyncStatus status, void* pUserData) {
-		Context* context = reinterpret_cast<Context*>(pUserData);
-		context->ready = true;
-		std::cout << "Buffer 2 mapped with status " << status << std::endl;
-		if (status != BufferMapAsyncStatus::Success) return;
-
-		// Use context->buffer here
-		// Get a pointer to wherever the driver mapped the GPU memory to the RAM
-		uint8_t* bufferData = (uint8_t*)context->buffer.getConstMappedRange(0, 16);
-
-		// Do stuff with bufferData
-		std::cout << "bufferData = [";
-		for (int i = 0; i < 16; ++i) {
-			if (i > 0) std::cout << ", ";
-			std::cout << (int)bufferData[i];
-		}
-		std::cout << "]" << std::endl;
-
-		// Then do not forget to unmap the memory
-		context->buffer.unmap();
-		};
-
-	// Create the Context instance
-	Context context = { false, buffer2 };
-
-	wgpuBufferMapAsync(buffer2, MapMode::Read, 0, 16, onBuffer2Mapped, (void*)&context);
-	//                   Pass the address of the Context instance here: ^^^^^^^^^^^^^^
-
-	while (!context.ready) {
-		//  ^^^^^^^^^^^^^ Use context.ready here instead of ready
-		wgpuPollEvents(device, true /* yieldToBrowser */);
-	}
-
-
-	// [...] Release buffers
-	buffer1.release();
-	buffer2.release();
 }
 
 

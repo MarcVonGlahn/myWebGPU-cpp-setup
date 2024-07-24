@@ -24,25 +24,11 @@
 #include <cmath>
 
 #include "Loader.h"
+#include "Helper.h"
 
 
 using VertexAttributes = Loader::VertexAttributes;
 using namespace wgpu;
-
-
-// We define a function that hides implementation-specific variants of device polling:
-inline void wgpuPollEvents([[maybe_unused]] Device device, [[maybe_unused]] bool yieldToWebBrowser) {
-#if defined(WEBGPU_BACKEND_DAWN)
-	device.tick();
-#elif defined(WEBGPU_BACKEND_WGPU)
-	device.poll(false);
-#elif defined(WEBGPU_BACKEND_EMSCRIPTEN)
-	if (yieldToWebBrowser) {
-		emscripten_sleep(100);
-	}
-#endif
-}
-
 
 class Application {
 public:
@@ -59,11 +45,9 @@ public:
 	bool IsRunning();
 
 private:
-
-	TextureView GetNextSurfaceTextureView();
 	void SetupDepthTextureView();
-	void DoTextureCreation();
-	void DoSamplerCreation();
+	void InitializeTexture();
+	void InitializeSampler();
 
 	void InitializePipeline();
 	void InitializeBuffers();
@@ -71,8 +55,7 @@ private:
 	void InitializeUniforms();
 	void UpdateUniforms();
 
-	void PlayWithBuffers();
-
+	TextureView GetNextSurfaceTextureView();
 	RequiredLimits GetRequiredLimits(Adapter adapter) const;
 
 private:
@@ -90,18 +73,18 @@ private:
 
 
 	// We put here all the variables that are shared between init and main loop
-	GLFWwindow *window;
-	Device device;
-	Queue queue;
-	Surface surface;
+	GLFWwindow *m_window;
+	Device m_device;
+	Queue m_queue;
+	Surface m_surface;
 	std::unique_ptr<ErrorCallback> uncapturedErrorCallbackHandle;
 
-	RenderPipeline pipeline;
-	TextureFormat surfaceFormat = TextureFormat::Undefined;
-	TextureFormat depthTextureFormat = TextureFormat::Undefined;
+	RenderPipeline m_pipeline;
+	TextureFormat m_surfaceFormat = TextureFormat::Undefined;
+	TextureFormat m_depthTextureFormat = TextureFormat::Undefined;
 
-	Texture depthTexture;
-	TextureView depthTextureView;
+	Texture m_depthTexture;
+	TextureView m_depthTextureView;
 
 	Texture m_texture;
 	TextureView m_textureView;
@@ -111,17 +94,17 @@ private:
 
 	std::vector<VertexAttributes> m_vertexData;
 
-	Buffer pointBuffer;
-	Buffer indexBuffer;
-	Buffer vertexBuffer;
-	Buffer uniformBuffer;
-	uint32_t indexCount;
+	Buffer m_vertexBuffer;
+	Buffer m_uniformBuffer;
+	uint32_t m_indexCount;
 
 	BindGroup m_bindGroup;
 
-	MyUniforms uniforms;
+	MyUniforms m_uniforms;
 
 	WGPUColor m_backgroundScreenColor = { 0.7, 0.7, 0.7, 1.0 };
+
+	glm::vec2 m_windowDimensions = glm::vec2(640.f, 480.f);
 
 	// Object Matrices
 	glm::mat4x4 R1;

@@ -22,6 +22,7 @@ add_executable(App
 	Loader.cpp
 	Application.cpp
 	implementations.cpp
+	Helper.h
 )
 
 target_include_directories(App PRIVATE .)
