@@ -602,7 +602,7 @@ class ObjReader {
 /// or not.
 /// Option 'default_vcols_fallback' specifies whether vertex colors should
 /// always be defined, even if no colors are given (fallback to white).
-inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *warn,
              std::string *err, const char *filename,
              const char *mtl_basedir = NULL, bool triangulate = true,
@@ -614,7 +614,7 @@ inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
 /// Returns true when loading .obj/.mtl become success.
 /// Returns warning message into `warn`, and error message into `err`
 /// See `examples/callback_api/` for how to use this function.
-inline bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
+bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
                          void *user_data = NULL,
                          MaterialReader *readMatFn = NULL,
                          std::string *warn = NULL, std::string *err = NULL);
@@ -623,14 +623,14 @@ inline bool LoadObjWithCallback(std::istream &inStream, const callback_t &callba
 /// std::istream for materials.
 /// Returns true when loading .obj become success.
 /// Returns warning and error message into `err`
-inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *warn,
              std::string *err, std::istream *inStream,
              MaterialReader *readMatFn = NULL, bool triangulate = true,
              bool default_vcols_fallback = true);
 
 /// Loads materials into std::map
-inline void LoadMtl(std::map<std::string, int> *material_map,
+void LoadMtl(std::map<std::string, int> *material_map,
              std::vector<material_t> *materials, std::istream *inStream,
              std::string *warning, std::string *err);
 
@@ -642,7 +642,7 @@ inline void LoadMtl(std::map<std::string, int> *material_map,
 /// @param[out] texopt Parsed texopt
 /// @param[in] linebuf Input string
 ///
-inline bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
+bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
                                const char *linebuf);
 
 /// =<<========== Legacy v1 API =============================================
@@ -688,7 +688,7 @@ inline bool ParseTextureNameAndOption(std::string *texname, texture_option_t *te
 
 namespace tinyobj {
 
-inline MaterialReader::~MaterialReader() {}
+MaterialReader::~MaterialReader() {}
 
 struct vertex_index_t {
   int v_idx, vt_idx, vn_idx;
@@ -800,7 +800,7 @@ static std::istream &safeGetline(std::istream &is, std::string &t) {
 #define IS_NEW_LINE(x) (((x) == '\r') || ((x) == '\n') || ((x) == '\0'))
 
 template <typename T>
-static inline std::string toString(const T &t) {
+static std::string toString(const T &t) {
   std::stringstream ss;
   ss << t;
   return ss.str();
@@ -813,7 +813,7 @@ struct warning_context
 };
 
 // Make index zero-base, and also support relative index.
-static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, const warning_context &context) {
+static bool fixIndex(int idx, int n, int *ret, bool allow_zero, const warning_context &context) {
   if (!ret) {
     return false;
   }
@@ -845,7 +845,7 @@ static inline bool fixIndex(int idx, int n, int *ret, bool allow_zero, const war
   return false;  // never reach here.
 }
 
-static inline std::string parseString(const char **token) {
+static std::string parseString(const char **token) {
   std::string s;
   (*token) += strspn((*token), " \t");
   size_t e = strcspn((*token), " \t\r");
@@ -854,7 +854,7 @@ static inline std::string parseString(const char **token) {
   return s;
 }
 
-static inline int parseInt(const char **token) {
+static int parseInt(const char **token) {
   (*token) += strspn((*token), " \t");
   int i = atoi((*token));
   (*token) += strcspn((*token), " \t\r");
@@ -1020,7 +1020,7 @@ fail:
   return false;
 }
 
-static inline real_t parseReal(const char **token, double default_value = 0.0) {
+static real_t parseReal(const char **token, double default_value = 0.0) {
   (*token) += strspn((*token), " \t");
   const char *end = (*token) + strcspn((*token), " \t\r");
   double val = default_value;
@@ -1030,7 +1030,7 @@ static inline real_t parseReal(const char **token, double default_value = 0.0) {
   return f;
 }
 
-static inline bool parseReal(const char **token, real_t *out) {
+static bool parseReal(const char **token, real_t *out) {
   (*token) += strspn((*token), " \t");
   const char *end = (*token) + strcspn((*token), " \t\r");
   double val;
@@ -1043,14 +1043,14 @@ static inline bool parseReal(const char **token, real_t *out) {
   return ret;
 }
 
-static inline void parseReal2(real_t *x, real_t *y, const char **token,
+static void parseReal2(real_t *x, real_t *y, const char **token,
                               const double default_x = 0.0,
                               const double default_y = 0.0) {
   (*x) = parseReal(token, default_x);
   (*y) = parseReal(token, default_y);
 }
 
-static inline void parseReal3(real_t *x, real_t *y, real_t *z,
+static void parseReal3(real_t *x, real_t *y, real_t *z,
                               const char **token, const double default_x = 0.0,
                               const double default_y = 0.0,
                               const double default_z = 0.0) {
@@ -1059,7 +1059,7 @@ static inline void parseReal3(real_t *x, real_t *y, real_t *z,
   (*z) = parseReal(token, default_z);
 }
 
-static inline void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
+static void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
                           const char **token, const double default_x = 0.0,
                           const double default_y = 0.0,
                           const double default_z = 0.0,
@@ -1071,7 +1071,7 @@ static inline void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
 }
 
 // Extension: parse vertex with colors(6 items)
-static inline bool parseVertexWithColor(real_t *x, real_t *y, real_t *z,
+static bool parseVertexWithColor(real_t *x, real_t *y, real_t *z,
                                         real_t *r, real_t *g, real_t *b,
                                         const char **token,
                                         const double default_x = 0.0,
@@ -1091,7 +1091,7 @@ static inline bool parseVertexWithColor(real_t *x, real_t *y, real_t *z,
   return found_color;
 }
 
-static inline bool parseOnOff(const char **token, bool default_value = true) {
+static bool parseOnOff(const char **token, bool default_value = true) {
   (*token) += strspn((*token), " \t");
   const char *end = (*token) + strcspn((*token), " \t\r");
 
@@ -1106,7 +1106,7 @@ static inline bool parseOnOff(const char **token, bool default_value = true) {
   return ret;
 }
 
-static inline texture_type_t parseTextureType(
+static texture_type_t parseTextureType(
     const char **token, texture_type_t default_value = TEXTURE_TYPE_NONE) {
   (*token) += strspn((*token), " \t");
   const char *end = (*token) + strcspn((*token), " \t\r");
@@ -1244,7 +1244,7 @@ static vertex_index_t parseRawTriple(const char **token) {
   return vi;
 }
 
-inline bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
+bool ParseTextureNameAndOption(std::string *texname, texture_option_t *texopt,
                                const char *linebuf) {
   // @todo { write more robust lexer and parser. }
   bool found_texname = false;
@@ -1429,27 +1429,27 @@ struct TinyObjPoint {
     x(x_), y(y_), z(z_) {}
 };
 
-inline TinyObjPoint cross(const TinyObjPoint &v1, const TinyObjPoint &v2) {
+TinyObjPoint cross(const TinyObjPoint &v1, const TinyObjPoint &v2) {
   return TinyObjPoint(v1.y * v2.z - v1.z * v2.y,
                       v1.z * v2.x - v1.x * v2.z,
                       v1.x * v2.y - v1.y * v2.x);
 }
 
-inline real_t dot(const TinyObjPoint &v1, const TinyObjPoint &v2) {
+real_t dot(const TinyObjPoint &v1, const TinyObjPoint &v2) {
   return (v1.x * v2.x + v1.y * v2.y + v1.z * v2.z);
 }
 
-inline real_t GetLength(TinyObjPoint &e) {
+real_t GetLength(TinyObjPoint &e) {
 	return std::sqrt(e.x*e.x + e.y*e.y + e.z*e.z);
 }
 
-inline TinyObjPoint Normalize(TinyObjPoint e) {
+TinyObjPoint Normalize(TinyObjPoint e) {
 	real_t inv_length = real_t(1) / GetLength(e);
 	return TinyObjPoint(e.x * inv_length, e.y * inv_length, e.z * inv_length );
 }
 
 
-inline TinyObjPoint WorldToLocal(const TinyObjPoint& a,
+TinyObjPoint WorldToLocal(const TinyObjPoint& a,
 										  const TinyObjPoint& u,
 										  const TinyObjPoint& v,
 										  const TinyObjPoint& w) {
@@ -2040,7 +2040,7 @@ static std::string JoinPath(const std::string &dir,
   }
 }
 
-inline void LoadMtl(std::map<std::string, int> *material_map,
+void LoadMtl(std::map<std::string, int> *material_map,
              std::vector<material_t> *materials, std::istream *inStream,
              std::string *warning, std::string *err) {
   (void)err;
@@ -2440,7 +2440,7 @@ inline void LoadMtl(std::map<std::string, int> *material_map,
   }
 }
 
-inline bool MaterialFileReader::operator()(const std::string &matId,
+bool MaterialFileReader::operator()(const std::string &matId,
                                     std::vector<material_t> *materials,
                                     std::map<std::string, int> *matMap,
                                     std::string *warn, std::string *err) {
@@ -2499,7 +2499,7 @@ inline bool MaterialFileReader::operator()(const std::string &matId,
   }
 }
 
-inline bool MaterialStreamReader::operator()(const std::string &matId,
+bool MaterialStreamReader::operator()(const std::string &matId,
                                       std::vector<material_t> *materials,
                                       std::map<std::string, int> *matMap,
                                       std::string *warn, std::string *err) {
@@ -2519,7 +2519,7 @@ inline bool MaterialStreamReader::operator()(const std::string &matId,
   return true;
 }
 
-inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *warn,
              std::string *err, const char *filename, const char *mtl_basedir,
              bool triangulate, bool default_vcols_fallback) {
@@ -2555,7 +2555,7 @@ inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
                  triangulate, default_vcols_fallback);
 }
 
-inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
+bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
              std::vector<material_t> *materials, std::string *warn,
              std::string *err, std::istream *inStream,
              MaterialReader *readMatFn /*= NULL*/, bool triangulate,
@@ -3115,7 +3115,7 @@ inline bool LoadObj(attrib_t *attrib, std::vector<shape_t> *shapes,
   return true;
 }
 
-inline bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
+bool LoadObjWithCallback(std::istream &inStream, const callback_t &callback,
                          void *user_data /*= NULL*/,
                          MaterialReader *readMatFn /*= NULL*/,
                          std::string *warn, /* = NULL*/
@@ -3410,7 +3410,7 @@ inline bool LoadObjWithCallback(std::istream &inStream, const callback_t &callba
   return true;
 }
 
-inline bool ObjReader::ParseFromFile(const std::string &filename,
+bool ObjReader::ParseFromFile(const std::string &filename,
                               const ObjReaderConfig &config) {
   std::string mtl_search_path;
 
@@ -3434,7 +3434,7 @@ inline bool ObjReader::ParseFromFile(const std::string &filename,
   return valid_;
 }
 
-inline bool ObjReader::ParseFromString(const std::string &obj_text,
+bool ObjReader::ParseFromString(const std::string &obj_text,
                                 const std::string &mtl_text,
                                 const ObjReaderConfig &config) {
   std::stringbuf obj_buf(obj_text);
