@@ -27,6 +27,12 @@
 #include "Helper.h"
 
 
+// ImGUI
+#include <imgui.h>
+#include <backends/imgui_impl_wgpu.h>
+#include <backends/imgui_impl_glfw.h>
+
+
 using VertexAttributes = Loader::VertexAttributes;
 using namespace wgpu;
 
@@ -68,6 +74,7 @@ private:
 	void InitBuffers();
 
 	void InitUniforms();
+
 	void UpdateUniforms();
 
 	void UpdateWindowDimensions();
@@ -76,6 +83,11 @@ private:
 	void UpdateViewMatrix();
 
 	void UpdateDragInertia();
+
+	// ImGUI
+	bool InitGui(); // called in onInit
+	void TerminateGui(); // called in onFinish
+	void UpdateGui(wgpu::RenderPassEncoder renderPass); // called in onFrame
 
 	TextureView GetNextSurfaceTextureView();
 	RequiredLimits GetRequiredLimits(Adapter adapter) const;

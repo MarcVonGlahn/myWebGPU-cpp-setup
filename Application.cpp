@@ -13,12 +13,16 @@ bool Application::Initialize() {
 	// At the end of Initialize()
 	InitPipeline();
 	InitBuffers();
+
+	if (!InitGui()) return false;
 	
 	return true;
 }
 
 
 void Application::Terminate() {
+	TerminateGui();
+
 	m_depthTextureView.release();
 	m_depthTexture.destroy();
 	m_depthTexture.release();
@@ -104,6 +108,9 @@ void Application::MainLoop() {
 
 	renderPass.draw(m_indexCount, 1, 0, 0);
 
+	// We add the GUI drawing commands to the render pass
+	UpdateGui(renderPass);
+
 	renderPass.end();
 	renderPass.release();
 
@@ -166,6 +173,13 @@ void Application::OnResize()
 
 void Application::OnMouseMove(double xpos, double ypos)
 {
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.WantCaptureMouse) {
+		// Don't rotate the camera if the mouse is already captured by an ImGui
+		// interaction at this frame.
+		return;
+	}
+
 	if (m_drag.active) {
 		glm::vec2 currentMouse = glm::vec2(-(float)xpos, (float)ypos);
 
@@ -735,6 +749,63 @@ void Application::UpdateDragInertia()
 	}
 }
 
+bool Application::InitGui() {
+	// Setup Dear ImGui context
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGui::GetIO();
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForOther(m_window, true);
+	ImGui_ImplWGPU_Init(m_device, 3, m_surfaceFormat, m_depthTextureFormat);
+	return true;
+}
+
+void Application::TerminateGui() {
+	ImGui_ImplGlfw_Shutdown();
+	ImGui_ImplWGPU_Shutdown();
+}
+
+void Application::UpdateGui(RenderPassEncoder renderPass) {
+	// Start the Dear ImGui frame
+	ImGui_ImplWGPU_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	// [...] Build our UI
+	// Build our UI
+	static float f = 0.0f;
+	static int counter = 0;
+	static bool show_demo_window = true;
+	static bool show_another_window = false;
+	static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+	ImGui::Begin("Hello, world!");                                // Create a window called "Hello, world!" and append into it.
+
+	ImGui::Text("This is some useful text.");                     // Display some text (you can use a format strings too)
+	ImGui::Checkbox("Demo Window", &show_demo_window);            // Edit bools storing our window open/close state
+	ImGui::Checkbox("Another Window", &show_another_window);
+
+	ImGui::SliderFloat("float", &f, 0.0f, 1.0f);                  // Edit 1 float using a slider from 0.0f to 1.0f
+	ImGui::ColorEdit3("clear color", (float*)&clear_color);       // Edit 3 floats representing a color
+
+	if (ImGui::Button("Button"))                                  // Buttons return true when clicked (most widgets return true when edited/activated)
+		counter++;
+	ImGui::SameLine();
+	ImGui::Text("counter = %d", counter);
+
+	ImGuiIO& io = ImGui::GetIO();
+	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+	ImGui::End();
+
+	// Draw the UI
+	ImGui::EndFrame();
+	// Convert the UI defined above into low-level drawing commands
+	ImGui::Render();
+	// Execute the low-level drawing commands on the WebGPU backend
+	ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), renderPass);
+}
+
 
 TextureView Application::GetNextSurfaceTextureView() {
 	// Get the surface texture
@@ -778,7 +849,7 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
 	requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
 	requiredLimits.limits.maxInterStageShaderComponents = 8;
-	requiredLimits.limits.maxBindGroups = 1;
+	requiredLimits.limits.maxBindGroups = 2;
 	requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
 	requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4 * sizeof(float);
 	// Allow textures up to 2K

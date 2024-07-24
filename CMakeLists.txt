@@ -14,6 +14,7 @@ endif()
 
 add_subdirectory(webgpu)
 add_subdirectory(glfw3webgpu)
+add_subdirectory(imgui)
 
 add_executable(App
 	main.cpp
@@ -27,7 +28,7 @@ add_executable(App
 
 target_include_directories(App PRIVATE .)
 
-target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu)
+target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu imgui)
 target_copy_webgpu_binaries(App)
 
 set_target_properties(App PROPERTIES
