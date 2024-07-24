@@ -23,39 +23,11 @@
 
 #include <cmath>
 
+#include "Loader.h"
 
-// Avoid the "wgpu::" prefix in front of all WebGPU symbols
+
+using VertexAttributes = Loader::VertexAttributes;
 using namespace wgpu;
-
-constexpr float PI = 3.14159265358979323846f;
-
-/**
- * The same structure as in the shader, replicated in C++
- */
-struct MyUniforms {
-	// We add transform matrices
-	glm::mat4x4 projectionMatrix;
-	glm::mat4x4 viewMatrix;
-	glm::mat4x4 modelMatrix;
-	std::array<float, 4> color;
-	float time;
-	float _pad[3];
-};
-// Have the compiler check byte alignment
-static_assert(sizeof(MyUniforms) % 16 == 0);
-
-/**
- * A structure that describes the data layout in the vertex buffer
- * We do not instantiate it but use it in `sizeof` and `offsetof`
- */
-struct VertexAttributes {
-	glm::vec3 position;
-	glm::vec3 normal;
-	glm::vec3 color;
-	glm::vec2 uv;
-};
-
-
 
 
 // We define a function that hides implementation-specific variants of device polling:
@@ -104,6 +76,19 @@ private:
 	RequiredLimits GetRequiredLimits(Adapter adapter) const;
 
 private:
+	struct MyUniforms {
+		// We add transform matrices
+		glm::mat4x4 projectionMatrix;
+		glm::mat4x4 viewMatrix;
+		glm::mat4x4 modelMatrix;
+		std::array<float, 4> color;
+		float time;
+		float _pad[3];
+	};
+	// Have the compiler check byte alignment
+	static_assert(sizeof(MyUniforms) % 16 == 0);
+
+
 	// We put here all the variables that are shared between init and main loop
 	GLFWwindow *window;
 	Device device;

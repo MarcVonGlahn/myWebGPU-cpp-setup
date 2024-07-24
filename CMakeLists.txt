@@ -19,6 +19,7 @@ add_executable(App
 	main.cpp
 	Application.h
 	Loader.h
+	Loader.cpp
 	Application.cpp
 	implementations.cpp
 )

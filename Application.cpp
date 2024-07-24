@@ -1,5 +1,7 @@
 #include "Application.h"
-#include "Loader.h"
+
+
+constexpr float PI = 3.14159265358979323846f;
 
 bool Application::Initialize() {
 	// Open window
