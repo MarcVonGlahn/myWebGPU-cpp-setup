@@ -1,5 +1,17 @@
 #include "Application.h"
 
+#include "glm/gtx/polar_coordinates.hpp"
+
+// Custom ImGui widgets
+namespace ImGui {
+	bool DragDirection(const char* label, glm::vec4& direction) {
+		glm::vec2 angles = glm::degrees(glm::polar(glm::vec3(direction)));
+		bool changed = ImGui::DragFloat2(label, glm::value_ptr(angles));
+		direction = glm::vec4(glm::euclidean(glm::radians(angles)), direction.w);
+		return changed;
+	}
+} // namespace ImGui
+
 constexpr float PI = 3.14159265358979323846f;
 
 bool Application::Initialize() {
@@ -9,6 +21,8 @@ bool Application::Initialize() {
 	InitQueue();
 
 	ConfigureSurface();
+
+	if (!InitLightingUniforms()) return false;
 
 	// At the end of Initialize()
 	InitPipeline();
@@ -44,6 +58,7 @@ void Application::MainLoop() {
 
 	UpdateDragInertia();
 	UpdateUniforms();
+	UpdateLightingUniforms();
 
 	// Get the next target texture view
 	TextureView targetView = GetNextSurfaceTextureView();
@@ -551,7 +566,7 @@ void Application::InitPipeline()
 	// [...] Define bindingLayout
 	// Create binding layouts
 	// Since we now have 2 bindings, we use a vector to store them
-	std::vector<BindGroupLayoutEntry> bindingLayoutEntries(3, Default);
+	std::vector<BindGroupLayoutEntry> bindingLayoutEntries(4, Default);
 	//                                                     ^ This was a 2
 
 	// The uniform buffer binding that we already had
@@ -574,6 +589,13 @@ void Application::InitPipeline()
 	samplerBindingLayout.binding = 2;
 	samplerBindingLayout.visibility = ShaderStage::Fragment;
 	samplerBindingLayout.sampler.type = SamplerBindingType::Filtering;
+
+	// The lighting uniform buffer binding
+	BindGroupLayoutEntry& lightingUniformLayout = bindingLayoutEntries[3];
+	lightingUniformLayout.binding = 3;
+	lightingUniformLayout.visibility = ShaderStage::Fragment; // only Fragment is needed
+	lightingUniformLayout.buffer.type = BufferBindingType::Uniform;
+	lightingUniformLayout.buffer.minBindingSize = sizeof(LightingUniforms);
 
 
 	// Create a bind group layout
@@ -600,7 +622,7 @@ void Application::InitPipeline()
 	InitSampler();
 
 	// Create a binding
-	std::vector<BindGroupEntry> bindings(3);
+	std::vector<BindGroupEntry> bindings(4);
 	//                                   ^ This was a 2
 
 	bindings[0].binding = 0;
@@ -613,6 +635,11 @@ void Application::InitPipeline()
 
 	bindings[2].binding = 2;
 	bindings[2].sampler = m_sampler;
+
+	bindings[3].binding = 3;
+	bindings[3].buffer = m_lightingUniformBuffer;
+	bindings[3].offset = 0;
+	bindings[3].size = sizeof(LightingUniforms);
 
 	BindGroupDescriptor bindGroupDesc;
 	bindGroupDesc.layout = bindGroupLayout;
@@ -772,31 +799,15 @@ void Application::UpdateGui(RenderPassEncoder renderPass) {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
-	// [...] Build our UI
-	// Build our UI
-	static float f = 0.0f;
-	static int counter = 0;
-	static bool show_demo_window = true;
-	static bool show_another_window = false;
-	static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-	ImGui::Begin("Hello, world!");                                // Create a window called "Hello, world!" and append into it.
-
-	ImGui::Text("This is some useful text.");                     // Display some text (you can use a format strings too)
-	ImGui::Checkbox("Demo Window", &show_demo_window);            // Edit bools storing our window open/close state
-	ImGui::Checkbox("Another Window", &show_another_window);
-
-	ImGui::SliderFloat("float", &f, 0.0f, 1.0f);                  // Edit 1 float using a slider from 0.0f to 1.0f
-	ImGui::ColorEdit3("clear color", (float*)&clear_color);       // Edit 3 floats representing a color
-
-	if (ImGui::Button("Button"))                                  // Buttons return true when clicked (most widgets return true when edited/activated)
-		counter++;
-	ImGui::SameLine();
-	ImGui::Text("counter = %d", counter);
-
-	ImGuiIO& io = ImGui::GetIO();
-	ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+	bool changed = false;
+	ImGui::Begin("Lighting");
+	changed = ImGui::ColorEdit3("Color #0", glm::value_ptr(m_lightingUniforms.colors[0])) || changed;
+	changed = ImGui::DragDirection("Direction #0", m_lightingUniforms.directions[0]) || changed;
+	changed = ImGui::ColorEdit3("Color #1", glm::value_ptr(m_lightingUniforms.colors[1])) || changed;
+	changed = ImGui::DragDirection("Direction #1", m_lightingUniforms.directions[1]) || changed;
 	ImGui::End();
+	m_lightingUniformsChanged = changed;
 
 	// Draw the UI
 	ImGui::EndFrame();
@@ -804,6 +815,43 @@ void Application::UpdateGui(RenderPassEncoder renderPass) {
 	ImGui::Render();
 	// Execute the low-level drawing commands on the WebGPU backend
 	ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), renderPass);
+}
+
+
+bool Application::InitLightingUniforms()
+{
+	// Create uniform buffer
+	BufferDescriptor bufferDesc;
+	bufferDesc.size = sizeof(LightingUniforms);
+	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Uniform;
+	bufferDesc.mappedAtCreation = false;
+	m_lightingUniformBuffer = m_device.createBuffer(bufferDesc);
+
+	// Initial values
+	m_lightingUniforms.directions[0] = { 0.5f, -0.9f, 0.1f, 0.0f };
+	m_lightingUniforms.directions[1] = { 0.2f, 0.4f, 0.3f, 0.0f };
+	m_lightingUniforms.colors[0] = { 1.0f, 0.9f, 0.6f, 1.0f };
+	m_lightingUniforms.colors[1] = { 0.6f, 0.9f, 1.0f, 1.0f };
+
+	UpdateLightingUniforms();
+
+	return m_lightingUniformBuffer != nullptr;
+}
+
+
+void Application::TerminateLightingUniforms()
+{
+	m_lightingUniformBuffer.destroy();
+	m_lightingUniformBuffer.release();
+}
+
+
+void Application::UpdateLightingUniforms()
+{
+	if (m_lightingUniformsChanged) {
+		m_queue.writeBuffer(m_lightingUniformBuffer, 0, &m_lightingUniforms, sizeof(LightingUniforms));
+		m_lightingUniformsChanged = false;
+	}
 }
 
 
@@ -850,7 +898,7 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
 	requiredLimits.limits.maxInterStageShaderComponents = 8;
 	requiredLimits.limits.maxBindGroups = 2;
-	requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
+	requiredLimits.limits.maxUniformBuffersPerShaderStage = 2;
 	requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4 * sizeof(float);
 	// Allow textures up to 2K
 	int num = 0;

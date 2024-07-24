@@ -85,9 +85,14 @@ private:
 	void UpdateDragInertia();
 
 	// ImGUI
-	bool InitGui(); // called in onInit
-	void TerminateGui(); // called in onFinish
-	void UpdateGui(wgpu::RenderPassEncoder renderPass); // called in onFrame
+	bool InitGui();
+	void TerminateGui();
+	void UpdateGui(wgpu::RenderPassEncoder renderPass);
+
+	// Lighting Uniforms
+	bool InitLightingUniforms(); // called in onInit()
+	void TerminateLightingUniforms(); // called in onFinish()
+	void UpdateLightingUniforms(); // called when GUI is tweaked
 
 	TextureView GetNextSurfaceTextureView();
 	RequiredLimits GetRequiredLimits(Adapter adapter) const;
@@ -104,6 +109,13 @@ private:
 	};
 	// Have the compiler check byte alignment
 	static_assert(sizeof(MyUniforms) % 16 == 0);
+
+	// Before Application's private attributes
+	struct LightingUniforms {
+		std::array<glm::vec4, 2> directions;
+		std::array<glm::vec4, 2> colors;
+	};
+	static_assert(sizeof(LightingUniforms) % 16 == 0);
 
 	struct CameraState {
 		// angles.x is the rotation of the camera around the global vertical axis, affected by mouse.x
@@ -157,6 +169,8 @@ private:
 
 	Buffer m_vertexBuffer;
 	Buffer m_uniformBuffer;
+	Buffer m_lightingUniformBuffer = nullptr;
+	LightingUniforms m_lightingUniforms;
 	uint32_t m_indexCount;
 
 	BindGroup m_bindGroup;
@@ -165,10 +179,12 @@ private:
 
 	WGPUColor m_backgroundScreenColor = { 0.7, 0.7, 0.7, 1.0 };
 
-	glm::vec2 m_windowDimensions = glm::vec2(640.f, 480.f);
+	glm::vec2 m_windowDimensions = glm::vec2(1080.f, 720.f);
 
 	CameraState m_cameraState;
 	DragState m_drag;
+
+	bool m_lightingUniformsChanged = false;
 
 	// Object Matrices
 	glm::mat4x4 R1;
