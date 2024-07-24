@@ -17,12 +17,10 @@ add_subdirectory(glfw3webgpu)
 
 add_executable(App
 	main.cpp
-)
-
-target_sources(App PRIVATE
 	Application.h
 	Loader.h
 	Application.cpp
+	implementations.cpp
 )
 
 target_include_directories(App PRIVATE .)
@@ -38,7 +36,7 @@ set_target_properties(App PROPERTIES
 )
 
 if (MSVC)
-	target_compile_options(App PRIVATE /W4)
+	target_compile_options(App PRIVATE /W3)
 else()
 	target_compile_options(App PRIVATE -Wall -Wextra -pedantic)
 endif()

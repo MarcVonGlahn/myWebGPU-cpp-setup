@@ -4,16 +4,12 @@
 #include <GLFW/glfw3.h>
 #include <glfw3webgpu.h>
 
-
-// Include the C++ wrapper instead of the raw header(s)
-#define WEBGPU_CPP_IMPLEMENTATION
 #include <webgpu/webgpu.hpp>
-
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_LEFT_HANDED
 #include <glm/glm.hpp> // all types inspired from GLSL
-#include <glm/ext.hpp> // --> Can't use this, give me error in type_quat.hpp
+#include <glm/ext.hpp> // --> Warning Level needs to be put on W3, otherwise it gives me error in type_quat.hpp
 
 #ifdef __EMSCRIPTEN__
 #  include <emscripten.h>
