@@ -135,12 +135,43 @@ bool Application::IsRunning() {
 }
 
 
+void Application::OnResize()
+{
+	// Terminate in reverse order
+	// terminateDepthBuffer();
+	m_depthTextureView.release();
+	m_depthTexture.destroy();
+	m_depthTexture.release();
+
+	// terminateSwapChain();
+	m_surface.unconfigure();
+	m_surface.release();
+
+	// Re-init
+
+	// InitDepthBuffer();
+	UpdateWindowDimensions();
+
+	InitInstanceAndSurface();
+	ConfigureSurface();
+
+	// Create the depth texture
+	InitDepthTextureView();
+	
+
+	UpdateProjectionMatrix();
+}
+
+
+// /////////////////////////////////////////////////////////////////////
+// private:
+
 void Application::InitWindow()
 {
 	// Open window
 	glfwInit();
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 	m_window = glfwCreateWindow((int)m_windowDimensions.x, (int)m_windowDimensions.y, "Learn WebGPU", nullptr, nullptr);
 }
 
@@ -218,6 +249,14 @@ void Application::ConfigureSurface()
 
 	m_surface.configure(config);
 
+	// Set the user pointer to be "this"
+	glfwSetWindowUserPointer(m_window, this);
+	// Use a non-capturing lambda as resize callback
+	glfwSetFramebufferSizeCallback(m_window, [](GLFWwindow* window, int, int) {
+		auto that = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+		if (that != nullptr) that->OnResize();
+		});
+
 
 	m_adapter.release();
 }
@@ -230,7 +269,7 @@ void Application::InitDepthTextureView()
 	depthTextureDesc.format = m_depthTextureFormat;
 	depthTextureDesc.mipLevelCount = 1;
 	depthTextureDesc.sampleCount = 1;
-	depthTextureDesc.size = { static_cast<uint16_t>(m_windowDimensions.x), static_cast<uint16_t>(m_windowDimensions.y), 1 };
+	depthTextureDesc.size = { static_cast<uint32_t>(m_windowDimensions.x), static_cast<uint32_t>(m_windowDimensions.y), 1 };
 	depthTextureDesc.usage = TextureUsage::RenderAttachment;
 	depthTextureDesc.viewFormatCount = 1;
 	depthTextureDesc.viewFormats = (WGPUTextureFormat*)&m_depthTextureFormat;
@@ -574,6 +613,31 @@ void Application::UpdateUniforms()
 }
 
 
+void Application::UpdateWindowDimensions()
+{
+	// Get the current size of the window's framebuffer:
+	int width, height;
+	glfwGetFramebufferSize(m_window, &width, &height);
+
+	m_windowDimensions = glm::vec2(width, height);
+}
+
+
+void Application::UpdateProjectionMatrix()
+{
+	int width, height;
+	glfwGetFramebufferSize(m_window, &width, &height);
+	float ratio = width / (float)height;
+	m_uniforms.projectionMatrix = glm::perspective(45 * PI / 180, ratio, 0.01f, 100.0f);
+	m_queue.writeBuffer(
+		m_uniformBuffer,
+		offsetof(MyUniforms, projectionMatrix),
+		&m_uniforms.projectionMatrix,
+		sizeof(MyUniforms::projectionMatrix)
+	);
+}
+
+
 TextureView Application::GetNextSurfaceTextureView() {
 	// Get the surface texture
 	SurfaceTexture surfaceTexture;
@@ -620,8 +684,15 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	requiredLimits.limits.maxUniformBuffersPerShaderStage = 1;
 	requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4 * sizeof(float);
 	// Allow textures up to 2K
-	requiredLimits.limits.maxTextureDimension1D = 2048;
-	requiredLimits.limits.maxTextureDimension2D = 2048;
+	int num = 0;
+
+	GLFWmonitor** some = glfwGetMonitors(&num);
+
+	int xPos, yPos, width, height;
+	glfwGetMonitorWorkarea(*some, &xPos, &yPos, &width, &height);
+
+	requiredLimits.limits.maxTextureDimension1D = width;
+	requiredLimits.limits.maxTextureDimension2D = width;
 	requiredLimits.limits.maxTextureArrayLayers = 1;
 	requiredLimits.limits.maxSampledTexturesPerShaderStage = 1;
 	requiredLimits.limits.maxSamplersPerShaderStage = 1;

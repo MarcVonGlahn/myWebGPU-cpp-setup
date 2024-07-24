@@ -44,6 +44,9 @@ public:
 	// Return true as long as the main loop should keep on running
 	bool IsRunning();
 
+	// A function called when the window is resized.
+	void OnResize();
+
 private:
 	void InitWindow();
 	void InitInstanceAndSurface();
@@ -61,6 +64,10 @@ private:
 
 	void InitUniforms();
 	void UpdateUniforms();
+
+	void UpdateWindowDimensions();
+
+	void UpdateProjectionMatrix();
 
 	TextureView GetNextSurfaceTextureView();
 	RequiredLimits GetRequiredLimits(Adapter adapter) const;
