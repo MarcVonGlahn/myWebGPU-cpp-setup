@@ -36,8 +36,10 @@ GameObject::GameObject(std::shared_ptr<wgpu::Device> device,
 }
 
 
-void GameObject::Initialize()
+void GameObject::Initialize(int index)
 {
+	m_bufferIndex = index;
+
 	InitBuffer();
 	InitBindGroup();
 }
@@ -73,11 +75,14 @@ void GameObject::InitBuffer()
 {
 	// Create vertex buffer
 	BufferDescriptor bufferDesc;
+	bufferDesc.label = m_name.c_str();
 	bufferDesc.size = m_vertexData.size() * sizeof(VertexAttributes); // changed
 	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Vertex;
 	bufferDesc.mappedAtCreation = false;
-	m_vertexBuffer = m_device.get()->createBuffer(bufferDesc);
-	m_device->getQueue().writeBuffer(m_vertexBuffer, 0, m_vertexData.data(), bufferDesc.size); // changed
+	m_vertexBuffer = m_device->createBuffer(bufferDesc);
+	m_device->getQueue().writeBuffer(m_vertexBuffer, m_bufferIndex, m_vertexData.data(), bufferDesc.size); // changed
+
+	// CONTINUE HERE, Figure out why vertex buffer is the same for multiple objects
 
 	m_indexCount = static_cast<int>(m_vertexData.size()); // changed
 }

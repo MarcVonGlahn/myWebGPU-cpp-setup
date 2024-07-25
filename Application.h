@@ -150,23 +150,13 @@ private:
 
 	std::vector<GameObject> m_gameObjects;
 
-	Texture m_baseColorTexture = nullptr;
-	TextureView m_baseColorTextureView = nullptr;
-	Texture m_normalTexture = nullptr;
-	TextureView m_normalTextureView = nullptr;
 	TextureDescriptor m_textureDesc;
 
 	Sampler m_sampler;
 
-	std::vector<VertexAttributes> m_vertexData;
-
-	Buffer m_vertexBuffer;
 	Buffer m_uniformBuffer;
 	Buffer m_lightingUniformBuffer = nullptr;
 	GameObject::LightingUniforms m_lightingUniforms;
-	uint32_t m_indexCount;
-
-	BindGroup m_bindGroup;
 
 	GameObject::MyUniforms m_uniforms;
 

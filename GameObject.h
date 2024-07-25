@@ -26,7 +26,7 @@ public:
 		std::shared_ptr<wgpu::BindGroupLayout> bindGroupLayout);
 
 	// Call after all attributes are set. Calls all init methods.
-	void Initialize();
+	void Initialize(int index);
 
 	wgpu::Buffer GetVertexBuffer();
 
@@ -83,6 +83,8 @@ private:
 	std::string m_path;
 
 	std::shared_ptr<wgpu::Device> m_device = nullptr;
+
+	int m_bufferIndex = 0;
 
 	wgpu::Buffer m_vertexBuffer;
 	std::vector<VertexAttributes> m_vertexData;

@@ -43,10 +43,11 @@ void Application::Terminate() {
 	m_depthTexture.destroy();
 	m_depthTexture.release();
 
-	m_baseColorTexture.destroy();
-	m_baseColorTexture.release();
-	m_normalTexture.destroy();
-	m_normalTexture.release();
+	for (int i = 0; i < m_gameObjects.size(); i++)
+	{
+		m_gameObjects[i].Terminate();
+	}
+
 	m_pipeline.release();
 	m_surface.unconfigure();
 	m_queue.release();
@@ -118,16 +119,30 @@ void Application::MainLoop() {
 
 	// Set both vertex and index buffers
 	// renderPass.setVertexBuffer(0, m_vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
-	GameObject testGameObject = m_gameObjects[m_gameObjects.size() - 1];
-	renderPass.setVertexBuffer(0, testGameObject.GetVertexBuffer(), 0, testGameObject.GetVertexData().size() * sizeof(VertexAttributes));
-	// The second argument must correspond to the choice of uint16_t or uint32_t
 
-	// Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
-	// The extra argument is an offset within the index buffer.
-	// Set binding group
-	renderPass.setBindGroup(0, testGameObject.GetBindGroup(), 0, nullptr);
+	for (int i = 0; i < m_gameObjects.size(); i++)
+	{
+		renderPass.setVertexBuffer(i, m_gameObjects[i].GetVertexBuffer(), 0, m_gameObjects[i].GetVertexData().size() * sizeof(VertexAttributes));
+		// The second argument must correspond to the choice of uint16_t or uint32_t
 
-	renderPass.draw(testGameObject.GetIndexCount(), 1, 0, 0);
+		// Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
+		// The extra argument is an offset within the index buffer.
+		// Set binding group
+		renderPass.setBindGroup(i, m_gameObjects[i].GetBindGroup(), 0, nullptr);
+
+		renderPass.draw(m_gameObjects[i].GetIndexCount(), 1, 0, 0);
+	}
+
+	//GameObject testGameObject = m_gameObjects[m_gameObjects.size() - 1];
+	//renderPass.setVertexBuffer(0, testGameObject.GetVertexBuffer(), 0, testGameObject.GetVertexData().size() * sizeof(VertexAttributes));
+	//// The second argument must correspond to the choice of uint16_t or uint32_t
+
+	//// Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
+	//// The extra argument is an offset within the index buffer.
+	//// Set binding group
+	//renderPass.setBindGroup(0, testGameObject.GetBindGroup(), 0, nullptr);
+
+	//renderPass.draw(testGameObject.GetIndexCount(), 1, 0, 0);
 
 	// We add the GUI drawing commands to the render pass
 	UpdateGui(renderPass);
@@ -385,16 +400,7 @@ void Application::InitDepthTextureView()
 
 void Application::InitTexture()
 {
-	m_baseColorTextureView = nullptr;
-	m_baseColorTexture = Loader::loadTexture(RESOURCE_DIR "/cobblestone_floor_08_diff_4k.jpg", m_device, &m_baseColorTextureView);
-	m_normalTextureView = nullptr;
-	m_normalTexture = Loader::loadTexture(RESOURCE_DIR "/cobblestone_floor_08_nor_gl_4k.png", m_device, &m_normalTextureView);
-	if (!m_baseColorTexture) {
-		std::cerr << "Could not load baseColor texture!" << std::endl;
-	}
-	if (!m_normalTexture) {
-		std::cerr << "Could not load normal texture!" << std::endl;
-	}
+
 }
 
 
@@ -419,23 +425,42 @@ void Application::InitSampler()
 
 bool Application::InitGameObjects()
 {
-	m_gameObjects.push_back(
-		GameObject(
-			std::make_shared<Device>(m_device),
-			"Flat Spot Car",
-			RESOURCE_DIR "/flatspot_car_2.obj",
-			glm::vec3(0),
-			std::make_shared<Buffer>(m_uniformBuffer),
-			std::make_shared<Buffer>(m_lightingUniformBuffer),
-			std::make_shared<Sampler>(m_sampler),
-			std::make_shared<BindGroupLayout>(m_bindGroupLayout)
-		)
+	GameObject flatSpotCar = GameObject(
+		std::make_shared<Device>(m_device),
+		"Flat Spot Car",
+		RESOURCE_DIR "/flatspot_car_2.obj",
+		glm::vec3(0),
+		std::make_shared<Buffer>(m_uniformBuffer),
+		std::make_shared<Buffer>(m_lightingUniformBuffer),
+		std::make_shared<Sampler>(m_sampler),
+		std::make_shared<BindGroupLayout>(m_bindGroupLayout)
 	);
 
-	m_gameObjects[m_gameObjects.size() - 1].SetAlbedoTexture(RESOURCE_DIR "/cobblestone_floor_08_diff_4k.jpg");
-	m_gameObjects[m_gameObjects.size() - 1].SetNormalTexture(RESOURCE_DIR "/cobblestone_floor_08_nor_gl_4k.png");
+	flatSpotCar.SetAlbedoTexture(RESOURCE_DIR "/texture_flatspot.png");
+	flatSpotCar.SetNormalTexture(RESOURCE_DIR "/cobblestone_floor_08_nor_gl_4k.png");
 
-	m_gameObjects[m_gameObjects.size() - 1].Initialize();
+	GameObject plane = GameObject(
+		std::make_shared<Device>(m_device),
+		"Plane",
+		RESOURCE_DIR "/plane.obj",
+		glm::vec3(0),
+		std::make_shared<Buffer>(m_uniformBuffer),
+		std::make_shared<Buffer>(m_lightingUniformBuffer),
+		std::make_shared<Sampler>(m_sampler),
+		std::make_shared<BindGroupLayout>(m_bindGroupLayout)
+	);
+
+	plane.SetAlbedoTexture(RESOURCE_DIR "/cobblestone_floor_08_diff_4k.jpg");
+	plane.SetNormalTexture(RESOURCE_DIR "/cobblestone_floor_08_nor_gl_4k.png");
+
+	m_gameObjects.push_back(flatSpotCar);
+	m_gameObjects.push_back(plane);
+
+	
+	for (int i = 0; i < m_gameObjects.size(); i++)
+	{
+		m_gameObjects[i].Initialize(i);
+	}
 
 	return true;
 }
@@ -676,35 +701,6 @@ void Application::InitPipeline()
 
 	InitSampler();
 
-	// Create a binding
-	std::vector<BindGroupEntry> bindings(5);
-	//                                   ^ This was a 4
-
-	bindings[0].binding = 0;
-	bindings[0].buffer = m_uniformBuffer;
-	bindings[0].offset = 0;
-	bindings[0].size = sizeof(GameObject::MyUniforms);
-
-	bindings[1].binding = 1;
-	bindings[1].textureView = m_baseColorTextureView;
-
-	bindings[2].binding = 2;
-	bindings[2].textureView = m_normalTextureView;
-
-	bindings[3].binding = 3;
-	bindings[3].sampler = m_sampler;
-
-	bindings[4].binding = 4;
-	bindings[4].buffer = m_lightingUniformBuffer;
-	bindings[4].offset = 0;
-	bindings[4].size = sizeof(GameObject::LightingUniforms);
-
-	BindGroupDescriptor bindGroupDesc;
-	bindGroupDesc.layout = m_bindGroupLayout;
-	bindGroupDesc.entryCount = (uint32_t)bindings.size();
-	bindGroupDesc.entries = bindings.data();
-	m_bindGroup = m_device.createBindGroup(bindGroupDesc);
-
 	// We no longer need to access the shader module
 	shaderModule.release();
 }
@@ -712,23 +708,7 @@ void Application::InitPipeline()
 
 void Application::InitBuffers()
 {
-	std::string myPath = RESOURCE_DIR "/flatspot_car_2.obj";
-	// Load mesh data from OBJ file
-	bool success = Loader::loadGeometryFromObj(myPath, m_vertexData);
-	if (!success) {
-		std::cerr << "Could not load geometry!" << std::endl;
-		return;
-	}
-
-	// Create vertex buffer
-	BufferDescriptor bufferDesc;
-	bufferDesc.size = m_vertexData.size() * sizeof(VertexAttributes); // changed
-	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Vertex;
-	bufferDesc.mappedAtCreation = false;
-	m_vertexBuffer = m_device.createBuffer(bufferDesc);
-	m_queue.writeBuffer(m_vertexBuffer, 0, m_vertexData.data(), bufferDesc.size); // changed
-
-	m_indexCount = static_cast<int>(m_vertexData.size()); // changed
+	
 
 	// Create index buffer
 	// (we reuse the bufferDesc initialized for the pointBuffer)
