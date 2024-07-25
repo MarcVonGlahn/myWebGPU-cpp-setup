@@ -41,8 +41,10 @@ void Application::Terminate() {
 	m_depthTexture.destroy();
 	m_depthTexture.release();
 
-	m_texture.destroy();
-	m_texture.release();
+	m_baseColorTexture.destroy();
+	m_baseColorTexture.release();
+	m_normalTexture.destroy();
+	m_normalTexture.release();
 	m_pipeline.release();
 	m_surface.unconfigure();
 	m_queue.release();
@@ -379,10 +381,15 @@ void Application::InitDepthTextureView()
 
 void Application::InitTexture()
 {
-	m_textureView = nullptr;
-	m_texture = Loader::loadTexture(RESOURCE_DIR "/fourareen2K_albedo.jpg", m_device, &m_textureView);
-	if (!m_texture) {
-		std::cerr << "Could not load texture!" << std::endl;
+	m_baseColorTextureView = nullptr;
+	m_baseColorTexture = Loader::loadTexture(RESOURCE_DIR "/cobblestone_floor_08_diff_4k.jpg", m_device, &m_baseColorTextureView);
+	m_normalTextureView = nullptr;
+	m_normalTexture = Loader::loadTexture(RESOURCE_DIR "/cobblestone_floor_08_nor_gl_4k.png", m_device, &m_normalTextureView);
+	if (!m_baseColorTexture) {
+		std::cerr << "Could not load baseColor texture!" << std::endl;
+	}
+	if (!m_normalTexture) {
+		std::cerr << "Could not load normal texture!" << std::endl;
 	}
 }
 
@@ -421,7 +428,8 @@ void Application::InitPipeline()
 	VertexBufferLayout vertexBufferLayout;
 	// [...] Describe the vertex buffer layout
 	// We now have 2 attributes
-	std::vector<VertexAttribute> vertexAttribs(4);
+	std::vector<VertexAttribute> vertexAttribs(6);
+	//                                         ^ was 4 
 
 	// Describe the position attribute
 	vertexAttribs[0].shaderLocation = 0; // @location(0)
@@ -442,6 +450,16 @@ void Application::InitPipeline()
 	vertexAttribs[3].shaderLocation = 3;
 	vertexAttribs[3].format = VertexFormat::Float32x2;
 	vertexAttribs[3].offset = offsetof(VertexAttributes, uv);
+
+	// Tangent attribute
+	vertexAttribs[4].shaderLocation = 4;
+	vertexAttribs[4].format = VertexFormat::Float32x3;
+	vertexAttribs[4].offset = offsetof(VertexAttributes, tangent);
+
+	// Bitangent attribute
+	vertexAttribs[5].shaderLocation = 5;
+	vertexAttribs[5].format = VertexFormat::Float32x3;
+	vertexAttribs[5].offset = offsetof(VertexAttributes, bitangent);
 
 	vertexBufferLayout.attributeCount = static_cast<uint32_t>(vertexAttribs.size());
 	vertexBufferLayout.attributes = vertexAttribs.data();
@@ -566,8 +584,8 @@ void Application::InitPipeline()
 	// [...] Define bindingLayout
 	// Create binding layouts
 	// Since we now have 2 bindings, we use a vector to store them
-	std::vector<BindGroupLayoutEntry> bindingLayoutEntries(4, Default);
-	//                                                     ^ This was a 2
+	std::vector<BindGroupLayoutEntry> bindingLayoutEntries(5, Default);
+	//                                                     ^ This was a 4
 
 	// The uniform buffer binding that we already had
 	BindGroupLayoutEntry& bindingLayout = bindingLayoutEntries[0];
@@ -584,15 +602,22 @@ void Application::InitPipeline()
 	textureBindingLayout.texture.sampleType = TextureSampleType::Float;
 	textureBindingLayout.texture.viewDimension = TextureViewDimension::_2D;
 
+	// The normal map binding
+	BindGroupLayoutEntry& normalTextureBindingLayout = bindingLayoutEntries[2];
+	normalTextureBindingLayout.binding = 2;
+	normalTextureBindingLayout.visibility = ShaderStage::Fragment;
+	normalTextureBindingLayout.texture.sampleType = TextureSampleType::Float;
+	normalTextureBindingLayout.texture.viewDimension = TextureViewDimension::_2D;
+
 	// The texture sampler binding
-	BindGroupLayoutEntry& samplerBindingLayout = bindingLayoutEntries[2];
-	samplerBindingLayout.binding = 2;
+	BindGroupLayoutEntry& samplerBindingLayout = bindingLayoutEntries[3];
+	samplerBindingLayout.binding = 3;
 	samplerBindingLayout.visibility = ShaderStage::Fragment;
 	samplerBindingLayout.sampler.type = SamplerBindingType::Filtering;
 
 	// The lighting uniform buffer binding
-	BindGroupLayoutEntry& lightingUniformLayout = bindingLayoutEntries[3];
-	lightingUniformLayout.binding = 3;
+	BindGroupLayoutEntry& lightingUniformLayout = bindingLayoutEntries[4];
+	lightingUniformLayout.binding = 4;
 	lightingUniformLayout.visibility = ShaderStage::Fragment; // only Fragment is needed
 	lightingUniformLayout.buffer.type = BufferBindingType::Uniform;
 	lightingUniformLayout.buffer.minBindingSize = sizeof(LightingUniforms);
@@ -622,8 +647,8 @@ void Application::InitPipeline()
 	InitSampler();
 
 	// Create a binding
-	std::vector<BindGroupEntry> bindings(4);
-	//                                   ^ This was a 2
+	std::vector<BindGroupEntry> bindings(5);
+	//                                   ^ This was a 4
 
 	bindings[0].binding = 0;
 	bindings[0].buffer = m_uniformBuffer;
@@ -631,15 +656,18 @@ void Application::InitPipeline()
 	bindings[0].size = sizeof(MyUniforms);
 
 	bindings[1].binding = 1;
-	bindings[1].textureView = m_textureView;
+	bindings[1].textureView = m_baseColorTextureView;
 
 	bindings[2].binding = 2;
-	bindings[2].sampler = m_sampler;
+	bindings[2].textureView = m_normalTextureView;
 
 	bindings[3].binding = 3;
-	bindings[3].buffer = m_lightingUniformBuffer;
-	bindings[3].offset = 0;
-	bindings[3].size = sizeof(LightingUniforms);
+	bindings[3].sampler = m_sampler;
+
+	bindings[4].binding = 4;
+	bindings[4].buffer = m_lightingUniformBuffer;
+	bindings[4].offset = 0;
+	bindings[4].size = sizeof(LightingUniforms);
 
 	BindGroupDescriptor bindGroupDesc;
 	bindGroupDesc.layout = bindGroupLayout;
@@ -657,7 +685,7 @@ void Application::InitPipeline()
 void Application::InitBuffers()
 {
 	// Load mesh data from OBJ file
-	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/fourareen.obj", m_vertexData);
+	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/cylinder.obj", m_vertexData);
 	if (!success) {
 		std::cerr << "Could not load geometry!" << std::endl;
 		return;
@@ -901,13 +929,13 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 
 
 	RequiredLimits requiredLimits = Default;
-	requiredLimits.limits.maxVertexAttributes = 4;
+	requiredLimits.limits.maxVertexAttributes = 6;
 	requiredLimits.limits.maxVertexBuffers = 1;
 	requiredLimits.limits.maxBufferSize = 150000 * sizeof(VertexAttributes);
 	requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
 	requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
 	requiredLimits.limits.minUniformBufferOffsetAlignment = supportedLimits.limits.minUniformBufferOffsetAlignment;
-	requiredLimits.limits.maxInterStageShaderComponents = 11;
+	requiredLimits.limits.maxInterStageShaderComponents = 17;
 	requiredLimits.limits.maxBindGroups = 2;
 	requiredLimits.limits.maxUniformBuffersPerShaderStage = 2;
 	requiredLimits.limits.maxUniformBufferBindingSize = 16 * 4 * sizeof(float);
@@ -922,7 +950,7 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	requiredLimits.limits.maxTextureDimension1D = width;
 	requiredLimits.limits.maxTextureDimension2D = width;
 	requiredLimits.limits.maxTextureArrayLayers = 1;
-	requiredLimits.limits.maxSampledTexturesPerShaderStage = 1;
+	requiredLimits.limits.maxSampledTexturesPerShaderStage = 2;
 	requiredLimits.limits.maxSamplersPerShaderStage = 1;
 
 	return requiredLimits;

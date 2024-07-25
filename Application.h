@@ -167,8 +167,10 @@ private:
 	Texture m_depthTexture;
 	TextureView m_depthTextureView;
 
-	Texture m_texture;
-	TextureView m_textureView;
+	Texture m_baseColorTexture = nullptr;
+	TextureView m_baseColorTextureView = nullptr;
+	Texture m_normalTexture = nullptr;
+	TextureView m_normalTextureView = nullptr;
 	TextureDescriptor m_textureDesc;
 
 	Sampler m_sampler;

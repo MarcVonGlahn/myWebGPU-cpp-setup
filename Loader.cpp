@@ -117,6 +117,8 @@ bool Loader::loadGeometryFromObj(const fs::path& path, std::vector<VertexAttribu
 		}
 	}
 
+	populateTextureFrameAttributes(thisVertexData);
+
 	return true;
 }
 
@@ -245,4 +247,51 @@ void Loader::writeMipMaps(Device device, Texture texture, Extent3D textureSize, 
 	}
 
 	queue.release();
+}
+
+void Loader::populateTextureFrameAttributes(std::vector<VertexAttributes>& vertexData) {
+	size_t triangleCount = vertexData.size() / 3;
+	// We compute the local texture frame per triangle
+	for (int t = 0; t < triangleCount; ++t) {
+		VertexAttributes* v = &vertexData[3 * t];
+
+		for (int k = 0; k < 3; ++k) {
+			glm::mat3x3 TBN = computeTBN(v, v[k].normal);
+			v[k].tangent = TBN[0];
+			v[k].bitangent = TBN[1];
+		}
+	}
+}
+
+// Compute the TBN local to a triangle face from its corners and return it as
+// a matrix whose columns are the T, B and N vectors.
+glm::mat3x3 Loader::computeTBN(const VertexAttributes corners[3], const glm::vec3& expectedN) {
+	// What we call e in the figure
+	glm::vec3 ePos1 = corners[1].position - corners[0].position;
+	glm::vec3 ePos2 = corners[2].position - corners[0].position;
+
+	// What we call \bar e in the figure
+	glm::vec2 eUV1 = corners[1].uv - corners[0].uv;
+	glm::vec2 eUV2 = corners[2].uv - corners[0].uv;
+
+	glm::vec3 T = normalize(ePos1 * eUV2.y - ePos2 * eUV1.y);
+	glm::vec3 B = normalize(ePos2 * eUV1.x - ePos1 * eUV2.x);
+	glm::vec3 N = cross(T, B);
+
+	// Fix overall orientation
+	if (glm::dot(N, expectedN) < 0.0) {
+		T = -T;
+		B = -B;
+		N = -N;
+	}
+
+	// Ortho-normalize the (T, B, expectedN) frame
+	// a. "Remove" the part of T that is along expected N
+	N = expectedN;
+	T = normalize(T - dot(T, N) * N);
+	// b. Recompute B from N and T
+	B = cross(N, T);
+
+
+	return glm::mat3x3(T, B, N);
 }

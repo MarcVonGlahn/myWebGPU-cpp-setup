@@ -25,7 +25,13 @@ class Loader
 public:
 	struct VertexAttributes {
 		glm::vec3 position;
-		glm::vec3 normal;
+		
+		// Texture mapping attributes represent the local frame in which
+		// normals sampled from the normal map are expressed.
+		glm::vec3 tangent; // T = local X axis
+		glm::vec3 bitangent; // B = local Y axis
+		glm::vec3 normal; // N = local Z axis
+
 		glm::vec3 color;
 		glm::vec2 uv;
 	};
@@ -34,6 +40,8 @@ public:
 	static bool loadGeometryFromObj(const fs::path& path, std::vector<VertexAttributes>& thisVertexData);
 	static ShaderModule loadShaderModule(const fs::path& path, Device device);
 	static Texture loadTexture(const fs::path& path, Device device, TextureView* pTextureView);
+
+	static glm::mat3x3 computeTBN(const VertexAttributes corners[3], const glm::vec3& expectedN);
 	
 private:
 	static uint32_t bit_width(uint32_t m); 
@@ -44,5 +52,7 @@ private:
 		Extent3D textureSize,
 		[[maybe_unused]] uint32_t mipLevelCount, // not used yet
 		const unsigned char* pixelData);
+
+	static void populateTextureFrameAttributes(std::vector<VertexAttributes>& vertexData);
 };
 

@@ -3,6 +3,8 @@ struct VertexInput {
     @location(1) normal: vec3f,
     @location(2) color: vec3f,
     @location(3) uv: vec2f, // new attribute
+    @location(4) tangent: vec3f,
+    @location(5) bitangent: vec3f,
 };
 
 struct VertexOutput {
@@ -11,6 +13,8 @@ struct VertexOutput {
 	@location(1) normal: vec3f, // <--- Add a normal output
 	@location(2) uv: vec2f, // <--- Add a uv output
     @location(3) viewDirection: vec3f, // <--- Add a view direction output
+    @location(4) tangent: vec3f,
+    @location(5) bitangent: vec3f,
 };
 
 /**
@@ -41,8 +45,10 @@ const pi = 3.14159265359;
 // Instead of the simple uTime variable, our uniform variable is a struct
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
 @group(0) @binding(1) var baseColorTexture: texture_2d<f32>;
-@group(0) @binding(2) var textureSampler: sampler;
-@group(0) @binding(3) var<uniform> uLighting: LightingUniforms;
+@group(0) @binding(2) var normalTexture: texture_2d<f32>;
+//                        ^^^^^^^^^^^^^ New binding!
+@group(0) @binding(3) var textureSampler: sampler;
+@group(0) @binding(4) var<uniform> uLighting: LightingUniforms;
 
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
@@ -58,13 +64,28 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     // Then we only need the camera position to get the view direction:
     let cameraWorldPosition = uMyUniforms.cameraWorldPosition;
     out.viewDirection = cameraWorldPosition - worldPosition.xyz;
+
+    out.tangent = (uMyUniforms.modelMatrix * vec4f(in.tangent, 0.0)).xyz;
+    out.bitangent = (uMyUniforms.modelMatrix * vec4f(in.bitangent, 0.0)).xyz;
+    out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
 	return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
 	// Compute shading
-	let N = normalize(in.normal);
+    let normalMapStrength = 1.0;
+	// Sample normal
+    let encodedN = textureSample(normalTexture, textureSampler, in.uv).rgb;
+    let localN = encodedN * 2.0 - 1.0;
+    // The TBN matrix converts directions from the local space to the world space
+    let localToWorld = mat3x3f(
+        normalize(in.tangent),
+        normalize(in.bitangent),
+        normalize(in.normal),
+    );
+    let worldN = localToWorld * localN;
+    let N = mix(in.normal, worldN, normalMapStrength);
 	let V = normalize(in.viewDirection);
 
 	// Sample texture
