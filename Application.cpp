@@ -28,6 +28,8 @@ bool Application::Initialize() {
 	InitPipeline();
 	InitBuffers();
 
+	if (!InitGameObjects()) return false;
+
 	if (!InitGui()) return false;
 	
 	return true;
@@ -115,15 +117,17 @@ void Application::MainLoop() {
 	renderPass.setPipeline(m_pipeline);
 
 	// Set both vertex and index buffers
-	renderPass.setVertexBuffer(0, m_vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
+	// renderPass.setVertexBuffer(0, m_vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
+	GameObject testGameObject = m_gameObjects[m_gameObjects.size() - 1];
+	renderPass.setVertexBuffer(0, testGameObject.GetVertexBuffer(), 0, testGameObject.GetVertexData().size() * sizeof(VertexAttributes));
 	// The second argument must correspond to the choice of uint16_t or uint32_t
 
 	// Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
 	// The extra argument is an offset within the index buffer.
 	// Set binding group
-	renderPass.setBindGroup(0, m_bindGroup, 0, nullptr);
+	renderPass.setBindGroup(0, testGameObject.GetBindGroup(), 0, nullptr);
 
-	renderPass.draw(m_indexCount, 1, 0, 0);
+	renderPass.draw(testGameObject.GetIndexCount(), 1, 0, 0);
 
 	// We add the GUI drawing commands to the render pass
 	UpdateGui(renderPass);
@@ -413,6 +417,30 @@ void Application::InitSampler()
 }
 
 
+bool Application::InitGameObjects()
+{
+	m_gameObjects.push_back(
+		GameObject(
+			std::make_shared<Device>(m_device),
+			"Flat Spot Car",
+			RESOURCE_DIR "/flatspot_car_2.obj",
+			glm::vec3(0),
+			std::make_shared<Buffer>(m_uniformBuffer),
+			std::make_shared<Buffer>(m_lightingUniformBuffer),
+			std::make_shared<Sampler>(m_sampler),
+			std::make_shared<BindGroupLayout>(m_bindGroupLayout)
+		)
+	);
+
+	m_gameObjects[m_gameObjects.size() - 1].SetAlbedoTexture(RESOURCE_DIR "/cobblestone_floor_08_diff_4k.jpg");
+	m_gameObjects[m_gameObjects.size() - 1].SetNormalTexture(RESOURCE_DIR "/cobblestone_floor_08_nor_gl_4k.png");
+
+	m_gameObjects[m_gameObjects.size() - 1].Initialize();
+
+	return true;
+}
+
+
 void Application::InitPipeline()
 {
 	std::cout << "Creating shader module..." << std::endl;
@@ -569,7 +597,7 @@ void Application::InitPipeline()
 	// Create uniform buffer
 	// The buffer will now contain MyUniforms
 	BufferDescriptor bufferDesc;
-	bufferDesc.size = sizeof(MyUniforms);
+	bufferDesc.size = sizeof(GameObject::MyUniforms);
 	// Make sure to flag the buffer as BufferUsage::Uniform
 	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Uniform;
 	bufferDesc.mappedAtCreation = false;
@@ -577,7 +605,7 @@ void Application::InitPipeline()
 
 	InitUniforms();
 
-	m_queue.writeBuffer(m_uniformBuffer, 0, &m_uniforms, sizeof(MyUniforms));
+	m_queue.writeBuffer(m_uniformBuffer, 0, &m_uniforms, sizeof(GameObject::MyUniforms));
 
 
 
@@ -592,7 +620,7 @@ void Application::InitPipeline()
 	bindingLayout.binding = 0;
 	bindingLayout.visibility = ShaderStage::Vertex | ShaderStage::Fragment;
 	bindingLayout.buffer.type = BufferBindingType::Uniform;
-	bindingLayout.buffer.minBindingSize = sizeof(MyUniforms);
+	bindingLayout.buffer.minBindingSize = sizeof(GameObject::MyUniforms);
 
 	// The texture binding
 	BindGroupLayoutEntry& textureBindingLayout = bindingLayoutEntries[1];
@@ -620,25 +648,27 @@ void Application::InitPipeline()
 	lightingUniformLayout.binding = 4;
 	lightingUniformLayout.visibility = ShaderStage::Fragment; // only Fragment is needed
 	lightingUniformLayout.buffer.type = BufferBindingType::Uniform;
-	lightingUniformLayout.buffer.minBindingSize = sizeof(LightingUniforms);
+	lightingUniformLayout.buffer.minBindingSize = sizeof(GameObject::LightingUniforms);
 
 
 	// Create a bind group layout
 	BindGroupLayoutDescriptor bindGroupLayoutDesc{};
 	bindGroupLayoutDesc.entryCount = (uint32_t)bindingLayoutEntries.size();
 	bindGroupLayoutDesc.entries = bindingLayoutEntries.data();
-	BindGroupLayout bindGroupLayout = m_device.createBindGroupLayout(bindGroupLayoutDesc);
+	m_bindGroupLayout = m_device.createBindGroupLayout(bindGroupLayoutDesc);
 
 
 
 	// Create the pipeline layout
 	PipelineLayoutDescriptor layoutDesc;
 	layoutDesc.bindGroupLayoutCount = 1;
-	layoutDesc.bindGroupLayouts = (WGPUBindGroupLayout*)&bindGroupLayout;
+	layoutDesc.bindGroupLayouts = (WGPUBindGroupLayout*)&m_bindGroupLayout;
 	PipelineLayout layout = m_device.createPipelineLayout(layoutDesc);
 
 	// Assign the PipelineLayout to the RenderPipelineDescriptor's layout field
 	pipelineDesc.layout = layout;
+
+	m_pipeline = m_device.createRenderPipeline(pipelineDesc);
 
 	InitDepthTextureView();
 
@@ -653,7 +683,7 @@ void Application::InitPipeline()
 	bindings[0].binding = 0;
 	bindings[0].buffer = m_uniformBuffer;
 	bindings[0].offset = 0;
-	bindings[0].size = sizeof(MyUniforms);
+	bindings[0].size = sizeof(GameObject::MyUniforms);
 
 	bindings[1].binding = 1;
 	bindings[1].textureView = m_baseColorTextureView;
@@ -667,15 +697,13 @@ void Application::InitPipeline()
 	bindings[4].binding = 4;
 	bindings[4].buffer = m_lightingUniformBuffer;
 	bindings[4].offset = 0;
-	bindings[4].size = sizeof(LightingUniforms);
+	bindings[4].size = sizeof(GameObject::LightingUniforms);
 
 	BindGroupDescriptor bindGroupDesc;
-	bindGroupDesc.layout = bindGroupLayout;
+	bindGroupDesc.layout = m_bindGroupLayout;
 	bindGroupDesc.entryCount = (uint32_t)bindings.size();
 	bindGroupDesc.entries = bindings.data();
 	m_bindGroup = m_device.createBindGroup(bindGroupDesc);
-
-	m_pipeline = m_device.createRenderPipeline(pipelineDesc);
 
 	// We no longer need to access the shader module
 	shaderModule.release();
@@ -684,8 +712,9 @@ void Application::InitPipeline()
 
 void Application::InitBuffers()
 {
+	std::string myPath = RESOURCE_DIR "/flatspot_car_2.obj";
 	// Load mesh data from OBJ file
-	bool success = Loader::loadGeometryFromObj(RESOURCE_DIR "/cylinder.obj", m_vertexData);
+	bool success = Loader::loadGeometryFromObj(myPath, m_vertexData);
 	if (!success) {
 		std::cerr << "Could not load geometry!" << std::endl;
 		return;
@@ -714,7 +743,7 @@ void Application::InitBuffers()
 void Application::InitUniforms()
 {
 	// Upload the initial value of the uniforms
-	m_uniforms = MyUniforms();
+	m_uniforms = GameObject::MyUniforms();
 
 	// Matrices
 	m_uniforms.modelMatrix = glm::mat4x4(1.0);
@@ -735,7 +764,7 @@ void Application::UpdateUniforms()
 	// uniforms.color = { 5.0f * cos(uniforms.time), sin(uniforms.time), -sin(uniforms.time), 1.0f};
 
 	// Upload only the time, whichever its order in the struct
-	m_queue.writeBuffer(m_uniformBuffer, offsetof(MyUniforms, time), &m_uniforms.time, sizeof(MyUniforms::time));
+	m_queue.writeBuffer(m_uniformBuffer, offsetof(GameObject::MyUniforms, time), &m_uniforms.time, sizeof(GameObject::MyUniforms::time));
 
 	// In the main loop
 	/*float viewZ = glm::mix(0.0f, 0.25f, cos(2 * PI * uniforms.time / 4) * 0.5 + 0.5);
@@ -762,9 +791,9 @@ void Application::UpdateProjectionMatrix()
 	m_uniforms.projectionMatrix = glm::perspective(45 * PI / 180, ratio, 0.01f, 100.0f);
 	m_queue.writeBuffer(
 		m_uniformBuffer,
-		offsetof(MyUniforms, projectionMatrix),
+		offsetof(GameObject::MyUniforms, projectionMatrix),
 		&m_uniforms.projectionMatrix,
-		sizeof(MyUniforms::projectionMatrix)
+		sizeof(GameObject::MyUniforms::projectionMatrix)
 	);
 }
 
@@ -779,17 +808,17 @@ void Application::UpdateViewMatrix()
 	m_uniforms.viewMatrix = glm::lookAt(position, glm::vec3(0.0f), glm::vec3(0, 0, 1));
 	m_queue.writeBuffer(
 		m_uniformBuffer,
-		offsetof(MyUniforms, viewMatrix),
+		offsetof(GameObject::MyUniforms, viewMatrix),
 		&m_uniforms.viewMatrix,
-		sizeof(MyUniforms::viewMatrix)
+		sizeof(GameObject::MyUniforms::viewMatrix)
 	);
 
 	m_uniforms.cameraWorldPosition = position;
 	m_device.getQueue().writeBuffer(
 		m_uniformBuffer,
-		offsetof(MyUniforms, cameraWorldPosition),
+		offsetof(GameObject::MyUniforms, cameraWorldPosition),
 		&m_uniforms.cameraWorldPosition,
-		sizeof(MyUniforms::cameraWorldPosition)
+		sizeof(GameObject::MyUniforms::cameraWorldPosition)
 	);
 }
 
@@ -861,7 +890,7 @@ bool Application::InitLightingUniforms()
 {
 	// Create uniform buffer
 	BufferDescriptor bufferDesc;
-	bufferDesc.size = sizeof(LightingUniforms);
+	bufferDesc.size = sizeof(GameObject::LightingUniforms);
 	bufferDesc.usage = BufferUsage::CopyDst | BufferUsage::Uniform;
 	bufferDesc.mappedAtCreation = false;
 	m_lightingUniformBuffer = m_device.createBuffer(bufferDesc);
@@ -888,7 +917,7 @@ void Application::TerminateLightingUniforms()
 void Application::UpdateLightingUniforms()
 {
 	if (m_lightingUniformsChanged) {
-		m_queue.writeBuffer(m_lightingUniformBuffer, 0, &m_lightingUniforms, sizeof(LightingUniforms));
+		m_queue.writeBuffer(m_lightingUniformBuffer, 0, &m_lightingUniforms, sizeof(GameObject::LightingUniforms));
 		m_lightingUniformsChanged = false;
 	}
 }

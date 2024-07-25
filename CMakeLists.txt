@@ -24,6 +24,8 @@ add_executable(App
 	Application.cpp
 	implementations.cpp
 	Helper.h
+	GameObject.h
+	GameObject.cpp
 )
 
 target_include_directories(App PRIVATE .)

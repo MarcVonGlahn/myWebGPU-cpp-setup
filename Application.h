@@ -26,6 +26,8 @@
 #include "Loader.h"
 #include "Helper.h"
 
+#include "GameObject.h"
+
 
 // ImGUI
 #include <imgui.h>
@@ -70,6 +72,8 @@ private:
 	void InitTexture();
 	void InitSampler();
 
+	bool InitGameObjects();
+
 	void InitPipeline();
 	void InitBuffers();
 
@@ -98,32 +102,7 @@ private:
 	RequiredLimits GetRequiredLimits(Adapter adapter) const;
 
 private:
-	struct MyUniforms {
-		// We add transform matrices
-		glm::mat4x4 projectionMatrix;
-		glm::mat4x4 viewMatrix;
-		glm::mat4x4 modelMatrix;
-		std::array<float, 4> color;
-		glm::vec3 cameraWorldPosition;
-		float time;
-		// float _pad;
-	};
-	// Have the compiler check byte alignment
-	static_assert(sizeof(MyUniforms) % 16 == 0);
-
-	// Before Application's private attributes
-	struct LightingUniforms {
-		std::array<glm::vec4, 2> directions;
-		std::array<glm::vec4, 2> colors;
-
-		// Material properties
-		float hardness = 32.0f;
-		float kd = 1.0f;
-		float ks = 0.5f;
-
-		float _pad[1];
-	};
-	static_assert(sizeof(LightingUniforms) % 16 == 0);
+	
 
 	struct CameraState {
 		// angles.x is the rotation of the camera around the global vertical axis, affected by mouse.x
@@ -160,12 +139,16 @@ private:
 	Surface m_surface;
 	std::unique_ptr<ErrorCallback> uncapturedErrorCallbackHandle;
 
+	BindGroupLayout m_bindGroupLayout = nullptr;
+
 	RenderPipeline m_pipeline;
 	TextureFormat m_surfaceFormat = TextureFormat::Undefined;
 	TextureFormat m_depthTextureFormat = TextureFormat::Undefined;
 
 	Texture m_depthTexture;
 	TextureView m_depthTextureView;
+
+	std::vector<GameObject> m_gameObjects;
 
 	Texture m_baseColorTexture = nullptr;
 	TextureView m_baseColorTextureView = nullptr;
@@ -180,12 +163,12 @@ private:
 	Buffer m_vertexBuffer;
 	Buffer m_uniformBuffer;
 	Buffer m_lightingUniformBuffer = nullptr;
-	LightingUniforms m_lightingUniforms;
+	GameObject::LightingUniforms m_lightingUniforms;
 	uint32_t m_indexCount;
 
 	BindGroup m_bindGroup;
 
-	MyUniforms m_uniforms;
+	GameObject::MyUniforms m_uniforms;
 
 	WGPUColor m_backgroundScreenColor = { 0.7, 0.7, 0.7, 1.0 };
 
