@@ -23,13 +23,8 @@ bool Application::Initialize() {
 	ConfigureSurface();
 
 	if (!InitLightingUniforms()) return false;
-
-	// At the end of Initialize()
-	InitPipeline();
-	InitBuffers();
-
+	if (!InitPipeline()) return false; // No need for InitBuffers();
 	if (!InitGameObjects()) return false;
-
 	if (!InitGui()) return false;
 	
 	return true;
@@ -115,10 +110,8 @@ void Application::MainLoop() {
 	RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
 
 	// Select which render pipeline to use
+	// To Do: Define own pipeline for each GameObject, depending on the shader used.
 	renderPass.setPipeline(m_pipeline);
-
-	// Set both vertex and index buffers
-	// renderPass.setVertexBuffer(0, m_vertexBuffer, 0, m_vertexData.size() * sizeof(VertexAttributes));
 
 	for (int i = 0; i < m_gameObjects.size(); i++)
 	{
@@ -415,7 +408,7 @@ bool Application::InitGameObjects()
 	);
 
 	flatSpotCar.SetAlbedoTexture(RESOURCE_DIR "/texture_flatspot.png");
-	flatSpotCar.SetNormalTexture(RESOURCE_DIR "/cobblestone_floor_08_nor_gl_4k.png");
+	flatSpotCar.SetNormalTexture(RESOURCE_DIR "/texture_flatspot_normal.png");
 
 	GameObject plane = GameObject(
 		std::make_shared<Device>(m_device),
@@ -428,8 +421,8 @@ bool Application::InitGameObjects()
 		std::make_shared<BindGroupLayout>(m_bindGroupLayout)
 	);
 
-	plane.SetAlbedoTexture(RESOURCE_DIR "/cobblestone_floor_08_diff_4k.jpg");
-	plane.SetNormalTexture(RESOURCE_DIR "/cobblestone_floor_08_nor_gl_4k.png");
+	plane.SetAlbedoTexture(RESOURCE_DIR "/tarmac_albedo.jpg");
+	plane.SetNormalTexture(RESOURCE_DIR "/hangar_concrete_floor_nor_gl_1k.png");
 
 
 	m_gameObjects.push_back(flatSpotCar);
@@ -445,7 +438,7 @@ bool Application::InitGameObjects()
 }
 
 
-void Application::InitPipeline()
+bool Application::InitPipeline()
 {
 	std::cout << "Creating shader module..." << std::endl;
 	ShaderModule shaderModule = Loader::loadShaderModule(RESOURCE_DIR "/shader.wgsl", m_device);
@@ -567,7 +560,6 @@ void Application::InitPipeline()
 	pipelineDesc.fragment = &fragmentState;
 
 
-
 	// [...] Describe stencil/depth pipeline state
 	DepthStencilState depthStencilState = Default;
 
@@ -680,20 +672,14 @@ void Application::InitPipeline()
 
 	// We no longer need to access the shader module
 	shaderModule.release();
+
+	return m_pipeline != nullptr;
 }
 
 
 void Application::InitBuffers()
 {
-	
-
-	// Create index buffer
-	// (we reuse the bufferDesc initialized for the pointBuffer)
-	// indexBuffer = device.createBuffer(bufferDesc);
-
-	// queue.writeBuffer(indexBuffer, 0, indexData.data(), bufferDesc.size);
-
-	// # Creation of Uniform Buffer is done in InitializePipeline(), because uniform Buffer is assigned earlier there already ###
+	// All done in the GameObject class.
 }
 
 
@@ -704,7 +690,7 @@ void Application::InitUniforms()
 
 	// Matrices
 	m_uniforms.modelMatrix = glm::mat4x4(1.0);
-	m_uniforms.viewMatrix = glm::lookAt(glm::vec3(-1.0f, -2.0f, 1.0f), glm::vec3(0.0f), glm::vec3(0, 0, 1));
+	m_uniforms.viewMatrix = glm::lookAt(glm::vec3(1.0f, 2.0f, 1.0f), glm::vec3(0.0f), glm::vec3(0, 0, 1));
 	m_uniforms.projectionMatrix = glm::perspective(45 * PI / 180, m_windowDimensions.x / m_windowDimensions.y, 0.01f, 100.0f);
 
 	m_uniforms.color = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -857,6 +843,8 @@ bool Application::InitLightingUniforms()
 	m_lightingUniforms.directions[1] = { 0.2f, 0.4f, 0.3f, 0.0f };
 	m_lightingUniforms.colors[0] = { 1.0f, 0.9f, 0.6f, 1.0f };
 	m_lightingUniforms.colors[1] = { 0.6f, 0.9f, 1.0f, 1.0f };
+
+	m_lightingUniformsChanged = true;
 
 	UpdateLightingUniforms();
 
