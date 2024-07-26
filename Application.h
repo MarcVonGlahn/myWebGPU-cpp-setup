@@ -69,7 +69,6 @@ private:
 	void ConfigureSurface();
 
 	void InitDepthTextureView();
-	void InitTexture();
 	void InitSampler();
 
 	bool InitGameObjects();
@@ -154,6 +153,7 @@ private:
 
 	Sampler m_sampler;
 
+	Buffer m_tempBuffer;
 	Buffer m_uniformBuffer;
 	Buffer m_lightingUniformBuffer = nullptr;
 	GameObject::LightingUniforms m_lightingUniforms;

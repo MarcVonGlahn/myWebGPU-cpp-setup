@@ -111,7 +111,7 @@ void Application::MainLoop() {
 	renderPassDesc.depthStencilAttachment = &depthStencilAttachment;
 	renderPassDesc.timestampWrites = nullptr;
 
-	// Create the render pass and end it immediately (we only clear the screen but do not draw anything)
+
 	RenderPassEncoder renderPass = encoder.beginRenderPass(renderPassDesc);
 
 	// Select which render pipeline to use
@@ -122,27 +122,11 @@ void Application::MainLoop() {
 
 	for (int i = 0; i < m_gameObjects.size(); i++)
 	{
-		renderPass.setVertexBuffer(i, m_gameObjects[i].GetVertexBuffer(), 0, m_gameObjects[i].GetVertexData().size() * sizeof(VertexAttributes));
-		// The second argument must correspond to the choice of uint16_t or uint32_t
-
-		// Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
-		// The extra argument is an offset within the index buffer.
-		// Set binding group
+		renderPass.setVertexBuffer(0, m_gameObjects[i].GetVertexBuffer(), 0, m_gameObjects[i].GetVertexData().size() * sizeof(VertexAttributes));
 		renderPass.setBindGroup(i, m_gameObjects[i].GetBindGroup(), 0, nullptr);
 
 		renderPass.draw(m_gameObjects[i].GetIndexCount(), 1, 0, 0);
 	}
-
-	//GameObject testGameObject = m_gameObjects[m_gameObjects.size() - 1];
-	//renderPass.setVertexBuffer(0, testGameObject.GetVertexBuffer(), 0, testGameObject.GetVertexData().size() * sizeof(VertexAttributes));
-	//// The second argument must correspond to the choice of uint16_t or uint32_t
-
-	//// Replace `draw()` with `drawIndexed()` and `vertexCount` with `indexCount`
-	//// The extra argument is an offset within the index buffer.
-	//// Set binding group
-	//renderPass.setBindGroup(0, testGameObject.GetBindGroup(), 0, nullptr);
-
-	//renderPass.draw(testGameObject.GetIndexCount(), 1, 0, 0);
 
 	// We add the GUI drawing commands to the render pass
 	UpdateGui(renderPass);
@@ -398,12 +382,6 @@ void Application::InitDepthTextureView()
 }
 
 
-void Application::InitTexture()
-{
-
-}
-
-
 void Application::InitSampler()
 {
 	SamplerDescriptor samplerDesc;
@@ -452,6 +430,7 @@ bool Application::InitGameObjects()
 
 	plane.SetAlbedoTexture(RESOURCE_DIR "/cobblestone_floor_08_diff_4k.jpg");
 	plane.SetNormalTexture(RESOURCE_DIR "/cobblestone_floor_08_nor_gl_4k.png");
+
 
 	m_gameObjects.push_back(flatSpotCar);
 	m_gameObjects.push_back(plane);
@@ -697,8 +676,6 @@ void Application::InitPipeline()
 
 	InitDepthTextureView();
 
-	InitTexture();
-
 	InitSampler();
 
 	// We no longer need to access the shader module
@@ -936,10 +913,12 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 
 	/*CHECK--> std::cout << "adapter.maxBufferSize: " << supportedLimits.limits.maxBufferSize << std::endl; */
 
+	std::cout << "Max Vertex Buffers: " << supportedLimits.limits.maxVertexBuffers << std::endl;
+
 
 	RequiredLimits requiredLimits = Default;
 	requiredLimits.limits.maxVertexAttributes = 6;
-	requiredLimits.limits.maxVertexBuffers = 1;
+	requiredLimits.limits.maxVertexBuffers = 2;
 	requiredLimits.limits.maxBufferSize = 150000 * sizeof(VertexAttributes);
 	requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
 	requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
