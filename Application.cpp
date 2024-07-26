@@ -123,7 +123,7 @@ void Application::MainLoop() {
 	for (int i = 0; i < m_gameObjects.size(); i++)
 	{
 		renderPass.setVertexBuffer(0, m_gameObjects[i].GetVertexBuffer(), 0, m_gameObjects[i].GetVertexData().size() * sizeof(VertexAttributes));
-		renderPass.setBindGroup(i, m_gameObjects[i].GetBindGroup(), 0, nullptr);
+		renderPass.setBindGroup(0, m_gameObjects[i].GetBindGroup(), 0, nullptr);
 
 		renderPass.draw(m_gameObjects[i].GetIndexCount(), 1, 0, 0);
 	}
@@ -911,14 +911,10 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	SupportedLimits supportedLimits;
 	adapter.getLimits(&supportedLimits);
 
-	/*CHECK--> std::cout << "adapter.maxBufferSize: " << supportedLimits.limits.maxBufferSize << std::endl; */
-
-	std::cout << "Max Vertex Buffers: " << supportedLimits.limits.maxVertexBuffers << std::endl;
-
 
 	RequiredLimits requiredLimits = Default;
 	requiredLimits.limits.maxVertexAttributes = 6;
-	requiredLimits.limits.maxVertexBuffers = 2;
+	requiredLimits.limits.maxVertexBuffers = 1;
 	requiredLimits.limits.maxBufferSize = 150000 * sizeof(VertexAttributes);
 	requiredLimits.limits.maxVertexBufferArrayStride = sizeof(VertexAttributes);
 	requiredLimits.limits.minStorageBufferOffsetAlignment = supportedLimits.limits.minStorageBufferOffsetAlignment;
