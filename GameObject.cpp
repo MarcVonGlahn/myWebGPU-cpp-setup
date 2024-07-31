@@ -1,6 +1,7 @@
 #include "GameObject.h"
 
-constexpr float PI = 3.14159265358979323846f;
+// Commented to avoid warning when building for emscripten
+// constexpr float PI = 3.14159265358979323846f;
 
 GameObject::GameObject()
 {

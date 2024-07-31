@@ -168,11 +168,6 @@ private:
 	DragState m_drag;
 
 	bool m_lightingUniformsChanged = false;
-
-	// Object Matrices
-	glm::mat4x4 R1;
-	glm::mat4x4 T1;
-	glm::mat4x4 S;
 };
 
 #endif // APPLICATION_H

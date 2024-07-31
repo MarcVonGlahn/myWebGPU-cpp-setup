@@ -1059,7 +1059,7 @@ static void parseReal3(real_t *x, real_t *y, real_t *z,
   (*z) = parseReal(token, default_z);
 }
 
-static void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
+/*static void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
                           const char **token, const double default_x = 0.0,
                           const double default_y = 0.0,
                           const double default_z = 0.0,
@@ -1068,7 +1068,7 @@ static void parseV(real_t *x, real_t *y, real_t *z, real_t *w,
   (*y) = parseReal(token, default_y);
   (*z) = parseReal(token, default_z);
   (*w) = parseReal(token, default_w);
-}
+}*/
 
 // Extension: parse vertex with colors(6 items)
 static bool parseVertexWithColor(real_t *x, real_t *y, real_t *z,

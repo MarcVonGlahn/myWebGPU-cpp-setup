@@ -38,7 +38,7 @@ void Application::Terminate() {
 	m_depthTexture.destroy();
 	m_depthTexture.release();
 
-	for (int i = 0; i < m_gameObjects.size(); i++)
+	for (int i = 0; i < (int)m_gameObjects.size(); i++)
 	{
 		m_gameObjects[i].Terminate();
 	}
@@ -113,7 +113,7 @@ void Application::MainLoop() {
 	// To Do: Define own pipeline for each GameObject, depending on the shader used.
 	renderPass.setPipeline(m_pipeline);
 
-	for (int i = 0; i < m_gameObjects.size(); i++)
+	for (int i = 0; i < (int)m_gameObjects.size(); i++)
 	{
 		renderPass.setVertexBuffer(0, m_gameObjects[i].GetVertexBuffer(), 0, m_gameObjects[i].GetVertexData().size() * sizeof(VertexAttributes));
 		renderPass.setBindGroup(0, m_gameObjects[i].GetBindGroup(), 0, nullptr);
@@ -227,6 +227,8 @@ void Application::OnMouseButton(int button, int action, int mods)
 			break;
 		}
 	}
+
+	button += mods; // avoid warning
 }
 
 
@@ -235,6 +237,8 @@ void Application::OnScroll(double xoffset, double yoffset)
 	m_cameraState.zoom += m_drag.scrollSensitivity * static_cast<float>(yoffset);
 	m_cameraState.zoom = glm::clamp(m_cameraState.zoom, -2.0f, 2.0f);
 	UpdateViewMatrix();
+
+	yoffset += xoffset; // avoid warning
 }
 
 
@@ -429,7 +433,7 @@ bool Application::InitGameObjects()
 	m_gameObjects.push_back(plane);
 
 	
-	for (int i = 0; i < m_gameObjects.size(); i++)
+	for (int i = 0; i < (int)m_gameObjects.size(); i++)
 	{
 		m_gameObjects[i].Initialize(i);
 	}
@@ -897,7 +901,14 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 {
 	// Get adapter supported limits, in case we need them
 	SupportedLimits supportedLimits;
+
+	#ifdef __EMSCRIPTEN__
+	// Error in Chrome so we hardcode values:
+	supportedLimits.limits.minStorageBufferOffsetAlignment = 256;
+	supportedLimits.limits.minUniformBufferOffsetAlignment = 256;
+	#else
 	adapter.getLimits(&supportedLimits);
+	#endif
 
 
 	RequiredLimits requiredLimits = Default;
@@ -924,6 +935,8 @@ RequiredLimits Application::GetRequiredLimits(Adapter adapter) const
 	requiredLimits.limits.maxTextureArrayLayers = 1;
 	requiredLimits.limits.maxSampledTexturesPerShaderStage = 2;
 	requiredLimits.limits.maxSamplersPerShaderStage = 1;
+
+	adapter.hasFeature(wgpu::FeatureName::DepthClipControl);
 
 	return requiredLimits;
 }

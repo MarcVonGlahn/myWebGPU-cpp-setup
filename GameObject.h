@@ -89,7 +89,7 @@ private:
 	wgpu::Buffer m_vertexBuffer;
 	std::vector<VertexAttributes> m_vertexData;
 
-	MyUniforms m_uniforms;
+	// MyUniforms m_uniforms;
 	std::shared_ptr<wgpu::Buffer> m_uniformBuffer;
 
 	LightingUniforms m_lightingUniforms;
